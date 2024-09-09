@@ -49,6 +49,9 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
       
     def load_vision_towers(self, vision_tower_name_list, args):
         self.vision_towers = nn.ModuleList()
+        siglip_vision_tower = SigLipVisionTower("mPLUG/TinyChart-3B-768-siglip")
+        siglip_vision_tower.load_model()
+        self.vision_towers.append(siglip_vision_tower)
         for name in vision_tower_name_list:
             if name == 'khhuang/chart-to-table':
                 donut_args = deepcopy(args)
@@ -57,12 +60,6 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
                 donut_vision_tower = DonutVisionTower('khhuang/chart-to-table', donut_args)     
                 donut_vision_tower.load_model()
                 self.vision_towers.append(donut_vision_tower)
-
-            elif name == "mPLUG/TinyChart-3B-768-siglip":
-                siglip_vision_tower = SigLipVisionTower("mPLUG/TinyChart-3B-768-siglip")
-                siglip_vision_tower.load_model()
-                self.viison_towers.append(siglip_vision_tower)
-
             elif name == 'google/deplot':
                 pix_args = deepcopy(args)
                 #pix_args.freeze_vision = True

@@ -66,6 +66,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
             warnings.warn('There is `lora` in model name but no `model_base` is provided. If you are loading a LoRA model, please provide the `model_base` argument. Detailed instruction: https://github.com/haotian-liu/LLaVA#launch-a-model-worker-lora-weights-unmerged.')
         if 'lora' in model_name.lower() and model_base is not None:
             from eagle.model.language_model.eagle_llama import eagleConfig
+            print("debug===============================================================1")
             lora_cfg_pretrained = eagleConfig.from_pretrained(model_path)
             tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
             print('Loading eagle from base model...')
@@ -95,6 +96,8 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
 
             from peft import PeftModel
             print('Loading LoRA weights...')
+            print("debug2===============================================================1")
+
             model = PeftModel.from_pretrained(model, model_path)
             print('Merging LoRA weights...')
             model = model.merge_and_unload()
@@ -102,6 +105,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
         elif model_base is not None:
             # this may be mm projector only
             print('Loading Eagle from base model...')
+            print("debug3===============================================================1")
 
             tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
             cfg_pretrained = AutoConfig.from_pretrained(model_path)
@@ -111,7 +115,10 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
             mm_projector_weights = {k: v.to(torch.float16) for k, v in mm_projector_weights.items()}
             model.load_state_dict(mm_projector_weights, strict=False)
         else:
-            tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
+            print("debug4===============================================================1")
+
+            tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
+            print("tokenizer Loaded=====================================================")
             model = EagleLlamaForCausalLM.from_pretrained(
                 model_path,
                 low_cpu_mem_usage=True,
@@ -122,6 +129,8 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
         if model_base is not None:
             # PEFT model
             from peft import PeftModel
+            print("debug5===============================================================1")
+
             tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
             model = AutoModelForCausalLM.from_pretrained(model_base, low_cpu_mem_usage=True, **kwargs)
             print(f"Loading LoRA weights from {model_path}")
@@ -132,6 +141,8 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
             model.to(torch.float16)
         else:
             use_fast = False
+            print("debug6===============================================================1")
+
             tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
             model = EagleLlamaForCausalLM.from_pretrained(
                 model_path,

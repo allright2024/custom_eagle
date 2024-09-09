@@ -38,12 +38,11 @@ conv_mode = "vicuna_v1"
 image_path = "assets/georgia-tech.jpeg"
 input_prompt = "Describe this image."
 
+print('debug1')
 model_name = get_model_name_from_path(model_path)
-tokenizer, model, image_processor, context_len = load_pretrained_model(model_path, 
-                                                                       None, 
-                                                                       model_name, 
-                                                                       False, 
-                                                                       False)
+print('debug2')
+tokenizer, model, image_processor, context_len = load_pretrained_model(model_path, None, model_name, load_8bit=False, load_4bit=False)
+
 
 if model.config.mm_use_im_start_end:
     input_prompt = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + input_prompt
@@ -59,8 +58,15 @@ image = Image.open(image_path).convert('RGB')
 image_tensor = process_images([image], image_processor, model.config)[0]
 input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt')
 
-input_ids = input_ids.to(device='cuda', non_blocking=True)
-image_tensor = image_tensor.to(dtype=torch.float16, device='cuda', non_blocking=True)
+
+# input_ids = input_ids.to(device='cuda', non_blocking=True)
+# image_tensor = image_tensor.to(dtype=torch.float16, device='cuda', non_blocking=True)
+
+strean = torch.cuda.Stream()
+with torch.cuda.stream(stream):
+    image_tensor = image_tensor.to(dtype=torch.float16, device='cuda', non_blocking=True)
+    input_ids = input_ids.to(device='cuda', non_blocking=True)
+stream.synchronize()
 
 with torch.inference_mode():
     output_ids = model.generate(

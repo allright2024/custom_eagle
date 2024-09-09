@@ -6,11 +6,22 @@ from transformers.models.deformable_detr import DeformableDetrConfig
 from transformers.utils import logging
 from transformers.utils.constants import OPENAI_CLIP_MEAN, OPENAI_CLIP_STD
 
-from pipeline.utils import check_local_file
+# from .utils import check_local_file
+# /home/work/model/custom_eagle/eagle/model/multimodal_projector/utils.py
+# /home/work/model/custom_eagle/eagle/model/multimodal_projector/utils.py", line 10, in <module>
+# 'eagle.model.multimodal_projector.multimodal_projector'
 
 logger = logging.get_logger(__name__)
 
-
+def check_local_file(model_name_or_path):
+    cache_dir = get_cache_dir()
+    file_name = os.path.join(
+        cache_dir, f"models--{model_name_or_path.replace('/', '--')}"
+    )
+    local_files_only = os.path.exists(file_name)
+    file_name = file_name if local_files_only else model_name_or_path
+    return local_files_only, file_name
+    
 class HoneybeeVisionConfig(PretrainedConfig):
     def __init__(
         self,

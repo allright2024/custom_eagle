@@ -680,7 +680,7 @@ class SigLipVisionModel(SigLipPreTrainedModel):
         )
 
 class SigLipVisionTower(nn.Module):
-    def __init__(self, vision_tower, vision_tower_cfg, delay_load=False):
+    def __init__(self, vision_tower, delay_load=False):
         super().__init__()
 
         self.is_loaded = False
