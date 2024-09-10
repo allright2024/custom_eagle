@@ -36,6 +36,7 @@ class SigLipImageProcessor:
         crop_size = get_size_dict(crop_size, default_to_square=True, param_name="crop_size")
 
         self.image_mean = image_mean
+        
         self.image_std = image_std
         self.size = size
         self.resample = resample
@@ -684,6 +685,7 @@ class SigLipVisionTower(nn.Module):
         super().__init__()
 
         self.is_loaded = False
+        self.input_image_size = 768
 
         if vision_tower is not None:
             self.config = SigLipVisionConfig.from_pretrained(vision_tower)

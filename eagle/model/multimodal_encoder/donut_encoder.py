@@ -55,7 +55,6 @@ class DonutVisionTower(nn.Module):
 
         self.is_loaded = False
         self.vision_tower_name = vision_tower
-        self.do_resize = args.do_resize
         self.de_normalize = args.de_normalize # de-normalize the input image and perform preprocessing with pix2struct processor
         self.select_layer = args.mm_vision_select_layer # NOTE: not implemented yet, this parameter has no effect
         self.input_image_size = args.input_image_size

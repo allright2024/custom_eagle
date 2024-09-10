@@ -49,13 +49,16 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
       
     def load_vision_towers(self, vision_tower_name_list, args):
         self.vision_towers = nn.ModuleList()
-        siglip_vision_tower = SigLipVisionTower("mPLUG/TinyChart-3B-768-siglip")
-        siglip_vision_tower.load_model()
-        self.vision_towers.append(siglip_vision_tower)
+        
         for name in vision_tower_name_list:
+            if name == "mPLUG/TinyChart-3B-768-siglip":
+                siglip_vision_tower = SigLipVisionTower("mPLUG/TinyChart-3B-768-siglip")
+                siglip_vision_tower.load_model()
+                self.vision_towers.append(siglip_vision_tower)
             if name == 'khhuang/chart-to-table':
                 donut_args = deepcopy(args)
                 donut_args.input_image_size = 1024
+                donut_args.de_normalize=True
                 donut_args.freeze_vision = False
                 donut_vision_tower = DonutVisionTower('khhuang/chart-to-table', donut_args)     
                 donut_vision_tower.load_model()
@@ -108,6 +111,7 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
 
     def forward(self, x):
         features = []
+        print(x.shape)
         for vision_tower in self.vision_towers:
             if vision_tower.input_image_size != self.input_image_size:
                 resized_x = F.interpolate(x.float(), 
@@ -117,6 +121,7 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
             else:
                 resized_x = x
             feature = vision_tower(resized_x)
+            print(feature.shape)
             if len(feature.shape) == 3: # b, n, c
                 b, n, c = feature.shape
                 if n == self.num_tokens:

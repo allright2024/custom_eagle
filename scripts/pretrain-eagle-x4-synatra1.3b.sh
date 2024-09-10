@@ -1,26 +1,14 @@
 #!/bin/bash
-NAME=$1
-
-# export WANDB_DISABLED="true"
-export WANDB_PROJECT="eagle"
-export WANDB_RUN_ID=${NAME}
-export WANDB_RESUME="allow"
-
-echo "MASTER_ADDR=$MASTER_ADDR"
-n_node=$SLURM_JOB_NUM_NODES
-echo "number of nodes:" $n_node
-echo "node rank:" $SLURM_PROCID
+NAME="eagle"
 
 python -m torch.distributed.run \
-    --nproc_per_node 8 --nnodes $SLURM_NNODES --node_rank $SLURM_PROCID \
-    --master_addr $MASTER_ADDR --master_port 25031 \
     train_mem.py \
     --deepspeed ./scripts/zero2.json \
-    --model_name_or_path lmsys/vicuna-7b-v1.5 \
+    --model_name_or_path maywell/Synatra-42dot-1.3B \
     --version plain \
-    --data_path $PATH_TO_PRETRAINING_DATA/blip_laion_cc_sbu_558k.json \
-    --image_folder $PATH_TO_PRETRAINING_DATA/images \
-    --vision_tower "clip-448;convnext-1024;det-1024;pix2struct-1024" \
+    --data_path /root/data/asd.json \
+    --image_folder /root/data/images \
+    --vision_tower "mPLUG/TinyChart-3B-768-siglip;khhuang/chart-to-table;google/deplot;clip-448" \
     --mm_projector_type mlp2x_gelu \
     --tune_mm_mlp_adapter True \
     --mm_vision_select_layer -2 \
@@ -29,8 +17,8 @@ python -m torch.distributed.run \
     --bf16 True \
     --output_dir ./checkpoints/$NAME \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 8 \
-    --per_device_eval_batch_size 4 \
+    --per_device_train_batch_size 1 \
+    --per_device_eval_batch_size 1 \
     --gradient_accumulation_steps 1 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
