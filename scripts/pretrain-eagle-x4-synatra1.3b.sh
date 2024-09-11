@@ -8,7 +8,7 @@ python -m torch.distributed.run \
     --version plain \
     --data_path /root/data/asd.json \
     --image_folder /root/data/images \
-    --vision_tower "mPLUG/TinyChart-3B-768-siglip;khhuang/chart-to-table;google/deplot;clip-448" \
+    --vision_tower "google/deplot;mPLUG/TinyChart-3B-768-siglip;google/matcha-chart2text-pew" \
     --mm_projector_type mlp2x_gelu \
     --tune_mm_mlp_adapter True \
     --mm_vision_select_layer -2 \

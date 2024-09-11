@@ -69,10 +69,11 @@ class Pix2StructLargeVisionTower(nn.Module):
             return
         whole_model = Pix2StructForConditionalGeneration.from_pretrained(self.vision_tower_name)
         self.vision_tower = whole_model.encoder
-        self.pix2struct_processor = AutoProcessor.from_pretrained(self.vision_tower_name)
-        self.pix2struct_processor.image_processor.is_vqa = False
+        self.image_processor = AutoProcessor.from_pretrained(self.vision_tower_name)
+        self.image_processor.image_processor.is_vqa = False
+        
 
-        self.image_processor = CLIPImageProcessor(**cfg)
+        # self.image_processor = CLIPImageProcessor(**cfg)
         if self.input_image_size is not None:
             self.image_processor.size=self.input_image_size
             self.image_processor.crop_size={
@@ -83,8 +84,8 @@ class Pix2StructLargeVisionTower(nn.Module):
         if self.freeze_vision:
             self.vision_tower.requires_grad_(False)
         
-        self.image_mean = torch.tensor(self.image_processor.image_mean).view(1, 3, 1, 1)
-        self.image_std = torch.tensor(self.image_processor.image_std).view(1, 3, 1, 1)
+        self.image_mean = torch.tensor(cfg["image_mean"]).view(1, 3, 1, 1)
+        self.image_std = torch.tensor(cfg["image_std"]).view(1, 3, 1, 1)
         
         self.is_loaded = True
 
@@ -99,24 +100,27 @@ class Pix2StructLargeVisionTower(nn.Module):
         return image_features
 
     # @torch.no_grad()
-    def forward(self, images):
+    def forward(self, flattened_patches, attention_mask):
 
-        if self.de_normalize:
-            mean = self.image_mean.clone().view(1, 3, 1, 1).to(dtype=images.dtype, device=images.device)
-            std = self.image_std.clone().view(1, 3, 1, 1).to(dtype=images.dtype, device=images.device)
-            x = (images * std + mean) * 255.0
-            x = self.pix2struct_processor(images=x.float(), return_tensors="pt")
+        # if self.de_normalize:
+        #     mean = self.image_mean.clone().view(1, 3, 1, 1).to(dtype=images.dtype, device=images.device)
+        #     std = self.image_std.clone().view(1, 3, 1, 1).to(dtype=images.dtype, device=images.device)
+        #     x = (images * std + mean) * 255.0
+        #     x = self.pix2struct_processor(images=x.float(), return_tensors="pt")
 
-        image_features = self.vision_tower(**(x.to(device=self.device, dtype=self.dtype))).last_hidden_state
-        bs, n, c = image_features.shape
-        image_features  = image_features[:, :2025, :] # HARD CODE
+
+        flattened_patches = flattened_patches.to(dtype=torch.bfloat16).cuda()
+        attention_mask = attention_mask.to(dtype=torch.bfloat16).cuda()
+        image_features = self.vision_tower(flattened_patches=flattened_patches.cuda(), attention_mask=attention_mask.cuda()).last_hidden_state
+        # bs, n, c = image_features.shape
+        # image_features  = image_features[:, :2025, :] # HARD CODE
         
-        if self.do_resize:
-            image_features = image_features.transpose(1,2).reshape(bs, c, 45, 45) # HARD CODE
-            image_features = F.interpolate(image_features.float(), size=(32, 32), mode='bilinear', align_corners=True).to(dtype=image_features.dtype) # HARD CODE
-            return image_features
-        else:
-            return image_features
+        # if self.do_resize:
+        #     image_features = image_features.transpose(1,2).reshape(bs, c, 45, 45) # HARD CODE
+        #     image_features = F.interpolate(image_features.float(), size=(32, 32), mode='bilinear', align_corners=True).to(dtype=image_features.dtype) # HARD CODE
+        #     return image_features
+        # else:
+        return image_features
 
 
     @property

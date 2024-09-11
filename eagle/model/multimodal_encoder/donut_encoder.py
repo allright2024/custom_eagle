@@ -70,22 +70,22 @@ class DonutVisionTower(nn.Module):
             return
         whole_model = VisionEncoderDecoderModel.from_pretrained(self.vision_tower_name)
         self.vision_tower = whole_model.encoder
-        self.donut_processor = DonutProcessor.from_pretrained(self.vision_tower_name)
+        self.image_processor = DonutProcessor.from_pretrained(self.vision_tower_name)
         # self.donut_processor.image_processor.is_vqa = False
 
-        self.image_processor = CLIPImageProcessor(**cfg)
-        if self.input_image_size is not None:
-            self.image_processor.size=self.input_image_size
-            self.image_processor.crop_size={
-                'height':self.input_image_size,
-                'width': self.input_image_size
-            }
+        # self.image_processor = CLIPImageProcessor(**cfg)
+        # if self.input_image_size is not None:
+        #     self.image_processor.size=self.input_image_size
+        #     self.image_processor.crop_size={
+        #         'height':self.input_image_size,
+        #         'width': self.input_image_size
+        #     }
 
         if self.freeze_vision:
             self.vision_tower.requires_grad_(False)
         
-        self.image_mean = torch.tensor(self.image_processor.image_mean).view(1, 3, 1, 1)
-        self.image_std = torch.tensor(self.image_processor.image_std).view(1, 3, 1, 1)
+        # self.image_mean = torch.tensor(self.image_processor.image_mean).view(1, 3, 1, 1)
+        # self.image_std = torch.tensor(self.image_processor.image_std).view(1, 3, 1, 1)
         
         self.is_loaded = True
 
@@ -106,7 +106,10 @@ class DonutVisionTower(nn.Module):
             mean = self.image_mean.clone().view(1, 3, 1, 1).to(dtype=images.dtype, device=images.device)
             std = self.image_std.clone().view(1, 3, 1, 1).to(dtype=images.dtype, device=images.device)
             x = (images * std + mean) * 255.0
-            x = self.donut_processor(images=x.float(), return_tensors="pt")
+            x = self.image_processor(images=x.float(), return_tensors="pt")
+        else:
+            print(images)
+            x = self.image_processor(images=images, return_tensors="pt")
 
         image_features = self.vision_tower(**(x.to(device=self.device, dtype=self.dtype))).last_hidden_state
         bs, n, c = image_features.shape
