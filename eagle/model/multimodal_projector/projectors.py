@@ -125,7 +125,7 @@ class MLPProjector(Projector):
         depth = self.config.depth
 
         self.net = build_mlp(depth, encoder_hidden_size, output_hidden_size)
-
+        
     def _forward(self, x):
         return self.net(x)
 
@@ -148,21 +148,21 @@ class ConvProjector(Projector):
         x3 = x3.squeeze(1).to("cuda")
 
         x1 = rearrange(x1, "b (h w) d -> b d h w", h = 45, w = 45)
-        x1 = self.net(x1)
+        x1 = self.net1(x1)
 
         x2 = rearrange(x2, "b (h w) d -> b d h w", h = 27, w = 27)
-        x2 = self.net(x2)
+        x2 = self.net2(x2)
 
         x3 = rearrange(x3, "b (h w) d -> b d h w", h = 45, w = 45)
-        x3 = self.net(x3)
+        x3 = self.net3(x3)
 
         x1 = rearrange(x1, "b d h w -> b (h w) d")
         x2 = rearrange(x2, "b d h w -> b (h w) d")
         x3 = rearrange(x3, "b d h w -> b (h w) d")
 
-        x1 = self.readout(x1)
-        x2 = self.readout(x2)
-        x3 = self.readout(x3)
+        x1 = self.readout1(x1)
+        x2 = self.readout2(x2)
+        x3 = self.readout3(x3)
 
         x = torch.cat((x1, x2, x3), dim=1)
         return x
@@ -202,8 +202,12 @@ class CAbstractor(ConvProjector):
         )
 
         if depth:
-            self.net = nn.Sequential(s1, sampler, s2)
-            self.readout = build_mlp(mlp_depth, hidden_size, output_hidden_size)
+            self.net1 = nn.Sequential(s1, sampler, s2)
+            self.net2 = nn.Sequential(s1, sampler, s2)
+            self.net3 = nn.Sequential(s1, sampler, s2)
+            self.readout1 = build_mlp(mlp_depth, hidden_size, output_hidden_size)
+            self.readout2 = build_mlp(mlp_depth, hidden_size, output_hidden_size)
+            self.readout3 = build_mlp(mlp_depth, hidden_size, output_hidden_size)
         else:
             self.net = sampler
             self.readout = build_mlp(mlp_depth, encoder_hidden_size, output_hidden_size)
