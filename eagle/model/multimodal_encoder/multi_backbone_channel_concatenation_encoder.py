@@ -118,42 +118,16 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
 
     def forward(self, x):
         features = []
-        print("images", x)
         
         for vision_tower in self.vision_towers:
-            # if vision_tower.input_image_size != self.input_image_size:
-            #     resized_x = F.interpolate(x.float(), 
-            #                               size=(vision_tower.input_image_size, vision_tower.input_image_size), 
-            #                               mode='bilinear', 
-            #                               align_corners=True).to(dtype=x.dtype)
-            # else:
-            #     resized_x = x
             try:
                 processed_image = vision_tower.image_processor.preprocess(x, return_tensors='pt')['pixel_values']
                 feature = vision_tower(processed_image)
             except:
                 processed_image = vision_tower.image_processor(x, return_tensors='pt')
                 feature = vision_tower(**processed_image)
-            print(feature.shape)
-            # if len(feature.shape) == 3: # b, n, c
-            #     b, n, c = feature.shape
-            #     if n == self.num_tokens:
-            #         features.append(feature)
-            #         continue
-
-            #     w = h = int(n**0.5)
-            #     feature = feature.transpose(1,2).reshape(b, c, h, w)
-            # else:
-            #     b, c, h, w = feature.shape
-
-            # if w != self.grid_size:
-            #     feature = F.interpolate(feature.float(), size=(self.grid_size, self.grid_size), mode='bilinear', align_corners=True).to(dtype=x.dtype)
-            # features.append(feature.flatten(2,3).transpose(1,2))
             features.append(feature)
-
-        print(len(features))        
-        # features = torch.cat(features, dim=-1)
-        exit()
+        
         return features
         
     @property

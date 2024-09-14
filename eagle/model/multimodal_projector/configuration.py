@@ -21,7 +21,20 @@ def check_local_file(model_name_or_path):
     local_files_only = os.path.exists(file_name)
     file_name = file_name if local_files_only else model_name_or_path
     return local_files_only, file_name
-    
+
+class CabsConfig:
+    def __init__(self, output_hidden_size, depth, mlp_depth, num_query_tokens, hidden_size, encoder_hidden_size):
+        self.output_hidden_size = output_hidden_size
+        self.depth = depth
+        self.mlp_depth = mlp_depth
+        self.num_query_tokens = num_query_tokens
+        self.hidden_size = hidden_size
+        self.encoder_hidden_size = encoder_hidden_size
+        self.num_eos_tokens = 0
+        self.pos_emb = True
+        self.feature_layer_index = -1
+        self.prenorm = False
+
 class HoneybeeVisionConfig(PretrainedConfig):
     def __init__(
         self,

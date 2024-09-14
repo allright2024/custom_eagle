@@ -105,8 +105,13 @@ class EagleMetaModel:
                 )
         else:
             # In case it is frozen by LoRA
-            for p in self.mm_projector.parameters():
-                p.requires_grad = True
+            try:
+                for p in self.mm_projector.parameters():
+                    p.requires_grad = True
+            except:
+                for mm_projector in self.mm_projector:
+                    for p in mm_projector.parameters:
+                        p.requires_grad = True
 
         if pretrain_mm_mlp_adapter is not None:
             mm_projector_weights = torch.load(pretrain_mm_mlp_adapter, map_location='cpu')
@@ -158,7 +163,16 @@ class EagleMetaForCausalLM(ABC):
 
     def encode_images(self, images):
         image_features = self.get_model().get_vision_tower()(images)
-        image_features = self.get_model().mm_projector(image_features)
+        # hardcoding 주의!
+        new_height = 2048 + 732 + 2048
+        new_width = 1152
+
+        padded_tensor = torch.full((len(images), new_height, new_width), -100).to(torch.bfloat16)
+        padded_tensor[:, :2048, :768] = image_features[0]
+        padded_tensor[:, 2048:2048 + 732, :1152] = image_features[1]
+        padded_tensor[:, 2048 + 732:, :768] = image_features[2]
+
+        image_features = self.get_model().mm_projector(padded_tensor)
         return image_features
 
     def prepare_inputs_labels_for_multimodal(
@@ -170,7 +184,9 @@ class EagleMetaForCausalLM(ABC):
             return input_ids, position_ids, attention_mask, past_key_values, None, labels
 
         
-        image_features = self.encode_images(images)
+        image_features = self.encode_images(images).last_hidden_state
+
+
 
         # TODO: image start / end is not implemented here to support pretraining.
         if getattr(self.config, 'tune_mm_mlp_adapter', False) and getattr(self.config, 'mm_use_im_start_end', False):
