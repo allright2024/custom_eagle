@@ -122,19 +122,23 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
         for vision_tower in self.vision_towers:
             try:
                 from PIL import Image
-                def expand2square(pil_img, background_color):
-                    width, height = pil_img.size
-                    if width == height:
-                        return pil_img
-                    elif width > height:
-                        result = Image.new(pil_img.mode, (width, width), background_color)
-                        result.paste(pil_img, (0, (width - height) // 2))
-                        return result
-                    else:
-                        result = Image.new(pil_img.mode, (height, height), background_color)
-                        result.paste(pil_img, ((height - width) // 2, 0))
-                        return result
-                squared_x = expand2square(x, tuple(int(t*255) for t in vision_tower.image_processor.image_mean))
+                def expand2square(pil_imgs, background_color):
+                    arr_img = []
+                    for pil_img in pil_imgs:
+                        width, height = pil_img.size
+                        if width == height:
+                            arr_img.append(pil_img)
+                        elif width > height:
+                            result = Image.new(pil_img.mode, (width, width), background_color)
+                            result.paste(pil_img, (0, (width - height) // 2))
+                            arr_img.append(result)
+                        else:
+                            result = Image.new(pil_img.mode, (height, height), background_color)
+                            result.paste(pil_img, ((height - width) // 2, 0))
+                            arr_img.append(result)
+                    return arr_img
+                
+                squared_x = expand2square(x, tuple(int(t*255) for t in [0.5, 0.5, 0.5]))
                 processed_image = vision_tower.image_processor.preprocess(squared_x, return_tensors='pt')['pixel_values']
                 feature = vision_tower(processed_image)
             except:
