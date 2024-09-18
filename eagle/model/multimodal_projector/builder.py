@@ -47,7 +47,7 @@ def build_vision_projector(config, delay_load=False, fpn_input_dim=[], **kwargs)
                             mlp_depth = 2, 
                             num_query_tokens = 144, 
                             hidden_size = 1024, 
-                            encoder_hidden_size = 1152) # honeybee에서 가져온 정보
+                            encoder_hidden_size = [768, 1152, 768]) # honeybee에서 가져온 정보
         return CAbstractor(config, num_input_tokens=num_input_tokens)
     
     if projector_type == "dabstractor":

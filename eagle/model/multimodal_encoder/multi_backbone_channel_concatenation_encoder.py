@@ -81,6 +81,7 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
                 deplot_vision_tower = Pix2StructLargeVisionTower("google/matcha-chart2text-pew", pix_args)     
                 deplot_vision_tower.load_model()
                 self.vision_towers.append(deplot_vision_tower)
+                
             elif name == "sam-1024":
                 sam_args = deepcopy(args)
                 sam_args.freeze_vision = False

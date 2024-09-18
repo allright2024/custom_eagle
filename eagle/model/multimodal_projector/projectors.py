@@ -15,16 +15,20 @@ from .configuration import HoneybeeVisualProjectorConfig, CabsConfig
 
 
 def build_pos_embeds(
-    config: CabsConfig, num_input_tokens: List[int], vision_hidden_size: int
+    config: CabsConfig, num_input_tokens: List[int], vision_hidden_size: List[int]
 ):
     # pos emb
     if config.pos_emb:
-        pos_emb1 = torch.nn.Parameter(torch.zeros(1, num_input_tokens[0], vision_hidden_size))
-        pos_emb2 = torch.nn.Parameter(torch.zeros(1, num_input_tokens[1], vision_hidden_size))
-        pos_emb3 = torch.nn.Parameter(torch.zeros(1, num_input_tokens[2], vision_hidden_size))
+        pos_emb1 = torch.nn.Parameter(torch.zeros(1, num_input_tokens[0], vision_hidden_size[0])).to("cuda")
+        pos_emb2 = torch.nn.Parameter(torch.zeros(1, num_input_tokens[1], vision_hidden_size[1])).to("cuda")
+        pos_emb3 = torch.nn.Parameter(torch.zeros(1, num_input_tokens[2], vision_hidden_size[2])).to("cuda")
 
-        pos_emb = torch.cat((pos_emb1, pos_emb2, pos_emb3), dim=1).to(torch.bfloat16)
-        nn.init.trunc_normal_(pos_emb, mean=0.0, std=0.02)
+        # pos_emb = torch.cat((pos_emb1, pos_emb2, pos_emb3), dim=1).to(torch.bfloat16)
+        nn.init.trunc_normal_(pos_emb1, mean=0.0, std=0.02)
+        nn.init.trunc_normal_(pos_emb2, mean=0.0, std=0.02)
+        nn.init.trunc_normal_(pos_emb3, mean=0.0, std=0.02)
+
+        pos_emb = [pos_emb1, pos_emb2, pos_emb3]
     else:
         pos_emb = None
 
@@ -45,7 +49,7 @@ def build_eos_tokens(config: CabsConfig, output_hidden_size: int):
 
 def build_prenorm(config: CabsConfig):
     if getattr(config, "prenorm", False):
-        prenorm = LayerNorm(config.encoder_hidden_size)
+        prenorm = [LayerNorm(config.encoder_hidden_size[0]), LayerNorm(config.encoder_hidden_size[1]), LayerNorm(config.encoder_hidden_size[2])]
     else:
         prenorm = None
     return prenorm
@@ -93,12 +97,14 @@ class Projector(nn.Module):
             x: (B, L, encoder_hidden_size) tensor from the visual backbone (CLIP visual encoder),
                 including cls token.
         """
+        # 현재 None으로 설정
         if self.prenorm is not None:
             x = self.prenorm(x)
-
+        
         if self.pos_emb is not None:
-            x += self.pos_emb
-
+            for a, b in zip(x, self.pos_emb):
+                a += b
+        
         x = self._forward(x)  # (B, L, output_hidden_size)
 
         B = x.size(0)
@@ -133,27 +139,36 @@ class MLPProjector(Projector):
 class ConvProjector(Projector):
     def _forward(self, x):
         # x: [B, L, dim]
-        hw = int(x.size(1) ** 0.5)
-        x1 = x[:, :2048, :]
-        x2 = x[:, 2048:2048+732, :]
-        x3 = x[:, 2048+732:, :]
-
-        x1 = F.interpolate(x1.unsqueeze(1), size=(2025, 1152), mode='bilinear', align_corners=False)
-        x2 = F.interpolate(x2.unsqueeze(1), size=(729, 1152), mode='bilinear', align_corners=False)
-        x3 = F.interpolate(x3.unsqueeze(1), size=(2025, 1152), mode='bilinear', align_corners=False)
+        # hw = int(x.size(1) ** 0.5)
+        # x1 = x[:, :2048, :]
+        # x2 = x[:, 2048:2048+732, :]
+        # x3 = x[:, 2048+732:, :]
 
 
-        x1 = x1.squeeze(1).to("cuda")
-        x2 = x2.squeeze(1).to("cuda")
-        x3 = x3.squeeze(1).to("cuda")
+        x1 = torch.full((x[0].shape[0], 2116, x[0].shape[-1]), -100, dtype=torch.bfloat16).to("cuda")
+        x2 = torch.full((x[1].shape[0], 784, x[1].shape[-1]), -100, dtype=torch.bfloat16).to("cuda")
+        x3 = torch.full((x[2].shape[0], 2116, x[2].shape[-1]), -100, dtype=torch.bfloat16).to("cuda")
 
-        x1 = rearrange(x1, "b (h w) d -> b d h w", h = 45, w = 45)
+        x1[:, :x[0].shape[1], :] = x[0]
+        x2[:, :x[1].shape[1], :] = x[1]
+        x3[:, :x[2].shape[1], :] = x[2]
+
+        # x1 = F.interpolate(x1.unsqueeze(1), size=(2025, 1152), mode='bilinear', align_corners=False)
+        # x2 = F.interpolate(x2.unsqueeze(1), size=(729, 1152), mode='bilinear', align_corners=False)
+        # x3 = F.interpolate(x3.unsqueeze(1), size=(2025, 1152), mode='bilinear', align_corners=False)
+
+
+        # x1 = x1.squeeze(1).to("cuda")
+        # x2 = x2.squeeze(1).to("cuda")
+        # x3 = x3.squeeze(1).to("cuda")
+
+        x1 = rearrange(x1, "b (h w) d -> b d h w", h = 46, w = 46)
         x1 = self.net1(x1)
 
-        x2 = rearrange(x2, "b (h w) d -> b d h w", h = 27, w = 27)
+        x2 = rearrange(x2, "b (h w) d -> b d h w", h = 28, w = 28)
         x2 = self.net2(x2)
 
-        x3 = rearrange(x3, "b (h w) d -> b d h w", h = 45, w = 45)
+        x3 = rearrange(x3, "b (h w) d -> b d h w", h = 46, w = 46)
         x3 = self.net3(x3)
 
         x1 = rearrange(x1, "b d h w -> b (h w) d")
@@ -189,10 +204,15 @@ class CAbstractor(ConvProjector):
             norm_layer=LayerNorm2d,
         )
 
-        s1 = RegBlock(
+        s1_p = RegBlock(
             depth,
-            encoder_hidden_size,
+            encoder_hidden_size[0],
             hidden_size,
+        )
+        s1_s = RegBlock(
+            depth,
+            encoder_hidden_size[1],
+            hidden_size
         )
         sampler = nn.AdaptiveAvgPool2d((hw, hw))
         s2 = RegBlock(
@@ -202,9 +222,9 @@ class CAbstractor(ConvProjector):
         )
 
         if depth:
-            self.net1 = nn.Sequential(s1, sampler, s2)
-            self.net2 = nn.Sequential(s1, sampler, s2)
-            self.net3 = nn.Sequential(s1, sampler, s2)
+            self.net1 = nn.Sequential(s1_p, sampler, s2)
+            self.net2 = nn.Sequential(s1_s, sampler, s2)
+            self.net3 = nn.Sequential(s1_p, sampler, s2)
             self.readout1 = build_mlp(mlp_depth, hidden_size, output_hidden_size)
             self.readout2 = build_mlp(mlp_depth, hidden_size, output_hidden_size)
             self.readout3 = build_mlp(mlp_depth, hidden_size, output_hidden_size)
