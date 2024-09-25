@@ -166,13 +166,16 @@ class EagleMetaForCausalLM(ABC):
         # hardcoding 주의!
         new_height = 2048 + 732 + 2048
         new_width = 1152
+        # print(image_features)
+        # exit()
 
-        # padded_tensor = torch.full((len(images), new_height, new_width), -100).to(torch.bfloat16)
-        # padded_tensor[:, :2048, :768] = image_features[0]
-        # padded_tensor[:, 2048:2048 + 732, :1152] = image_features[1]
-        # padded_tensor[:, 2048 + 732:, :768] = image_features[2]
+        padded_tensor = torch.full((len(images), 4900, new_width), -100).to(torch.bfloat16)
+        padded_tensor[:, :2048, :768] = image_features[0].detach()
+        padded_tensor[:, 2048:2048 + 732, :1152] = image_features[1].detach()
+        padded_tensor[:, 2048 + 732:4828, :768] = image_features[2].detach()
 
-        image_features = self.get_model().mm_projector(image_features)
+        x = padded_tensor.clone().detach()
+        image_features = self.get_model().mm_projector(x)
         return image_features
 
     def prepare_inputs_labels_for_multimodal(

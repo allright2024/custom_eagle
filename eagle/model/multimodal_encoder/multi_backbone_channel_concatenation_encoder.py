@@ -111,7 +111,7 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
                 self.vision_towers.append(clip_vision_tower)
         
         # a hardcode here, so we always use convnext in the vision encoder mixture
-        self.image_processor = siglip_vision_tower.image_processor
+        # self.image_processor = siglip_vision_tower.image_processor
         self.is_loaded = True
 
     def load_model(self):

@@ -28,7 +28,13 @@ def build_pos_embeds(
         nn.init.trunc_normal_(pos_emb2, mean=0.0, std=0.02)
         nn.init.trunc_normal_(pos_emb3, mean=0.0, std=0.02)
 
-        pos_emb = [pos_emb1, pos_emb2, pos_emb3]
+        pos_emb = torch.zeros((1, 4828, 1152)).to("cuda")
+        pos_emb[:, :2048, :768] = pos_emb1.detach()
+        pos_emb[:, 2048:2048+732, :1152] = pos_emb2.detach()
+        pos_emb[:, 2048+732:, :768] = pos_emb3.detach()
+        # pos_emb = pos_emb1
+        pos_emb = pos_emb.to("cuda")
+        # pos_emb = [pos_emb1, pos_emb2, pos_emb3]
     else:
         pos_emb = None
 
@@ -101,10 +107,11 @@ class Projector(nn.Module):
         if self.prenorm is not None:
             x = self.prenorm(x)
         
+        x = x.to("cuda")
+
         if self.pos_emb is not None:
-            for a, b in zip(x, self.pos_emb):
-                a += b
-        
+            x[:, :4828, :] += self.pos_emb
+
         x = self._forward(x)  # (B, L, output_hidden_size)
 
         B = x.size(0)
@@ -116,10 +123,11 @@ class Projector(nn.Module):
     
     def _load_from_state_dict(self, state_dict, *args, **kwargs):
         # update old ckpt compatible with current code
-        pos_emb = state_dict["abstractor.pos_emb"]
-        if pos_emb.size(1) == self.pos_emb.size(1) + 1:
-            # remove obsolete first pos emb (for cls token originally)
-            state_dict["abstractor.pos_emb"] = pos_emb[:, 1:]
+        # 이 부분은 state_dict에 없어서 못 불러오는 중..
+        # pos_emb = state_dict["abstractor.pos_emb"]
+        # if pos_emb.size(1) == self.pos_emb.size(1) + 1:
+        #     # remove obsolete first pos emb (for cls token originally)
+        #     state_dict["abstractor.pos_emb"] = pos_emb[:, 1:]
 
         super()._load_from_state_dict(state_dict, *args, **kwargs)
 
@@ -139,47 +147,12 @@ class MLPProjector(Projector):
 class ConvProjector(Projector):
     def _forward(self, x):
         # x: [B, L, dim]
-        # hw = int(x.size(1) ** 0.5)
-        # x1 = x[:, :2048, :]
-        # x2 = x[:, 2048:2048+732, :]
-        # x3 = x[:, 2048+732:, :]
+        # padded_x = torch.full((x.shape[0], 4900, x.shape[2]), -100, dtype=torch.bfloat16).to("cuda")
+        x = rearrange(x, "b (h w) d -> b d h w", h=70, w=70)
+        x = self.net(x)
+        x = rearrange(x, "b d h w -> b (h w) d")
+        x = self.readout(x)
 
-
-        x1 = torch.full((x[0].shape[0], 2116, x[0].shape[-1]), -100, dtype=torch.bfloat16).to("cuda")
-        x2 = torch.full((x[1].shape[0], 784, x[1].shape[-1]), -100, dtype=torch.bfloat16).to("cuda")
-        x3 = torch.full((x[2].shape[0], 2116, x[2].shape[-1]), -100, dtype=torch.bfloat16).to("cuda")
-
-        x1[:, :x[0].shape[1], :] = x[0]
-        x2[:, :x[1].shape[1], :] = x[1]
-        x3[:, :x[2].shape[1], :] = x[2]
-
-        # x1 = F.interpolate(x1.unsqueeze(1), size=(2025, 1152), mode='bilinear', align_corners=False)
-        # x2 = F.interpolate(x2.unsqueeze(1), size=(729, 1152), mode='bilinear', align_corners=False)
-        # x3 = F.interpolate(x3.unsqueeze(1), size=(2025, 1152), mode='bilinear', align_corners=False)
-
-
-        # x1 = x1.squeeze(1).to("cuda")
-        # x2 = x2.squeeze(1).to("cuda")
-        # x3 = x3.squeeze(1).to("cuda")
-
-        x1 = rearrange(x1, "b (h w) d -> b d h w", h = 46, w = 46)
-        x1 = self.net1(x1)
-
-        x2 = rearrange(x2, "b (h w) d -> b d h w", h = 28, w = 28)
-        x2 = self.net2(x2)
-
-        x3 = rearrange(x3, "b (h w) d -> b d h w", h = 46, w = 46)
-        x3 = self.net3(x3)
-
-        x1 = rearrange(x1, "b d h w -> b (h w) d")
-        x2 = rearrange(x2, "b d h w -> b (h w) d")
-        x3 = rearrange(x3, "b d h w -> b (h w) d")
-
-        x1 = self.readout1(x1)
-        x2 = self.readout2(x2)
-        x3 = self.readout3(x3)
-
-        x = torch.cat((x1, x2, x3), dim=1)
         return x
 
 
@@ -206,13 +179,8 @@ class CAbstractor(ConvProjector):
 
         s1_p = RegBlock(
             depth,
-            encoder_hidden_size[0],
-            hidden_size,
-        )
-        s1_s = RegBlock(
-            depth,
             encoder_hidden_size[1],
-            hidden_size
+            hidden_size,
         )
         sampler = nn.AdaptiveAvgPool2d((hw, hw))
         s2 = RegBlock(
@@ -222,12 +190,8 @@ class CAbstractor(ConvProjector):
         )
 
         if depth:
-            self.net1 = nn.Sequential(s1_p, sampler, s2)
-            self.net2 = nn.Sequential(s1_s, sampler, s2)
-            self.net3 = nn.Sequential(s1_p, sampler, s2)
-            self.readout1 = build_mlp(mlp_depth, hidden_size, output_hidden_size)
-            self.readout2 = build_mlp(mlp_depth, hidden_size, output_hidden_size)
-            self.readout3 = build_mlp(mlp_depth, hidden_size, output_hidden_size)
+            self.net = nn.Sequential(s1_p, sampler, s2)
+            self.readout = build_mlp(mlp_depth, hidden_size, output_hidden_size)
         else:
             self.net = sampler
             self.readout = build_mlp(mlp_depth, encoder_hidden_size, output_hidden_size)

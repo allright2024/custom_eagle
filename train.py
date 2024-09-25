@@ -896,31 +896,13 @@ class LazySupervisedDataset(Dataset):
         if 'image' in sources[0]:
             image_file = self.list_data_dict[i]['image']
             image_folder = self.data_args.image_folder
-            processor = self.data_args.image_processor
+            # processor = self.data_args.image_processor
             try:
                 image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
             except:
                 print(f'image file {os.path.join(image_folder, image_file)} broken.., using a dummy black image instead')
                 image = Image.fromarray(np.zeros((224,224,3), dtype=np.uint8))
-            if self.data_args.image_aspect_ratio == 'pad':
-                def expand2square(pil_img, background_color):
-                    width, height = pil_img.size
-                    if width == height:
-                        return pil_img
-                    elif width > height:
-                        result = Image.new(pil_img.mode, (width, width), background_color)
-                        result.paste(pil_img, (0, (width - height) // 2))
-                        return result
-                    else:
-                        result = Image.new(pil_img.mode, (height, height), background_color)
-                        result.paste(pil_img, ((height - width) // 2, 0))
-                        return result
-                # image = expand2square(image, tuple(int(x*255) for x in processor.image_mean))
-                # image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-                pass
-            else:
-                # image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-                pass
+            
             sources = preprocess_multimodal(
                 copy.deepcopy([e["conversations"] for e in sources]),
                 self.data_args)
@@ -1073,7 +1055,7 @@ def train(attn_implementation=None):
         vision_tower = model.get_vision_tower()
         vision_tower.to(dtype=torch.bfloat16 if training_args.bf16 else torch.float16, device=training_args.device)
 
-        data_args.image_processor = vision_tower.image_processor
+        # data_args.image_processor = vision_tower.image_processor
         data_args.is_multimodal = True
 
         model.config.image_aspect_ratio = data_args.image_aspect_ratio
@@ -1083,6 +1065,7 @@ def train(attn_implementation=None):
         model.config.tune_mm_mlp_adapter = training_args.tune_mm_mlp_adapter = model_args.tune_mm_mlp_adapter
         if model_args.tune_mm_mlp_adapter:
             model.requires_grad_(False)
+            
             for p in model.get_model().mm_projector.parameters():
                 p.requires_grad = True
 
