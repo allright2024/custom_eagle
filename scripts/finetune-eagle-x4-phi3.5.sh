@@ -9,7 +9,7 @@ python -m torch.distributed.run \
     --version v1 \
     --data_path /root/data/asd.json \
     --image_folder /root/data/images \
-    --vision_tower "google/deplot;mPLUG/TinyChart-3B-768-siglip;google/matcha-chart2text-pew" \
+    --vision_tower "google/deplot;mPLUG/TinyChart-3B-768-siglip;google/pix2struct-large" \
     --pretrain_mm_mlp_adapter /root/custom_eagle/checkpoints/eagle_pretrained/mm_projector.bin \
     --mm_projector_type cabstractor \
     --tune_mm_mlp_adapter True \

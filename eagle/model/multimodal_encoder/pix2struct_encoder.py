@@ -59,6 +59,7 @@ class Pix2StructLargeVisionTower(nn.Module):
         self.input_image_size = args.input_image_size
         self.select_feature = getattr(args, 'mm_vision_select_feature', 'patch')
         self.freeze_vision = args.freeze_vision
+        self.max_patches = args.max_patches
 
         self.args = args
         if not self.is_loaded:
@@ -69,7 +70,7 @@ class Pix2StructLargeVisionTower(nn.Module):
             return
         whole_model = Pix2StructForConditionalGeneration.from_pretrained(self.vision_tower_name)
         self.vision_tower = whole_model.encoder
-        self.image_processor = AutoProcessor.from_pretrained(self.vision_tower_name)
+        self.image_processor = AutoProcessor.from_pretrained(self.vision_tower_name, max_patches=self.max_patches)
         self.image_processor.image_processor.is_vqa = False
         
 

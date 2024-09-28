@@ -27,6 +27,7 @@ import torch.nn.functional as F
 from torch.nn.init import trunc_normal_
 from .siglip_encoder import SigLipVisionTower
 from copy import deepcopy
+from PIL import Image
 import random
 import math
 
@@ -66,6 +67,7 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
             elif name == 'google/deplot':
                 pix_args = deepcopy(args)
                 pix_args.input_image_size = 1024
+                pix_args.max_patches = 2048
                 pix_args.freeze_vision = False
                 pix_args.do_resize = True
                 pix_args.de_normalize = True
@@ -95,6 +97,7 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
                 pix_args = deepcopy(args)
                 #pix_args.freeze_vision = True
                 pix_args.input_image_size = 1024
+                pix_args.max_patches = 4096
                 pix_args.freeze_vision = False
                 pix_args.do_resize = True
                 pix_args.de_normalize = True
@@ -122,7 +125,9 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
         
         for vision_tower in self.vision_towers:
             try:
-                from PIL import Image
+                processed_image = vision_tower.image_processor(x, return_tensors='pt')
+                feature = vision_tower(**processed_image)
+            except:
                 def expand2square(pil_imgs, background_color):
                     arr_img = []
                     for pil_img in pil_imgs:
@@ -142,10 +147,8 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
                 squared_x = expand2square(x, tuple(int(t*255) for t in [0.5, 0.5, 0.5]))
                 processed_image = vision_tower.image_processor.preprocess(squared_x, return_tensors='pt')['pixel_values']
                 feature = vision_tower(processed_image)
-            except:
-                processed_image = vision_tower.image_processor(x, return_tensors='pt')
-                feature = vision_tower(**processed_image)
             features.append(feature)
+            
         
         return features
         

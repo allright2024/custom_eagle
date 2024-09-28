@@ -1066,7 +1066,11 @@ def train(attn_implementation=None):
         if model_args.tune_mm_mlp_adapter:
             model.requires_grad_(False)
             
-            for p in model.get_model().mm_projector.parameters():
+            for p in model.get_model().deplot_mm_projector.parameters():
+                p.requires_grad = True
+            for p in model.get_model().siglip_mm_projector.parameters():
+                p.requires_grad = True
+            for p in model.get_model().pix2struct_mm_projector.parameters():
                 p.requires_grad = True
 
         model.config.freeze_mm_mlp_adapter = training_args.freeze_mm_mlp_adapter

@@ -50,7 +50,9 @@ class EagleMetaModel:
         if hasattr(config, "mm_vision_tower"):
             self.vision_tower = build_vision_tower(config, delay_load=True)
             fpn_input_dim = [] if not hasattr(self.vision_tower, "fpn_input_dim") else self.vision_tower.fpn_input_dim
-            self.mm_projector = build_vision_projector(config, fpn_input_dim=fpn_input_dim)
+            self.deplot_mm_projector = build_vision_projector(self.config, fpn_input_dim=fpn_input_dim, vision_tower_dim = 768, num_patches=2048)
+            self.siglip_mm_projector = build_vision_projector(self.config, fpn_input_dim=fpn_input_dim, vision_tower_dim = 1152, num_patches=732)
+            self.pix2struct_mm_projector = build_vision_projector(self.config, fpn_input_dim=fpn_input_dim, vision_tower_dim = 5136, num_patches=4096)
 
             if 'unpad' in getattr(config, 'mm_patch_merge_type', ''):
                 self.image_newline = nn.Parameter(
@@ -96,8 +98,10 @@ class EagleMetaModel:
 
         if getattr(self, 'mm_projector', None) is None:
             fpn_input_dim = [] if not hasattr(self.vision_tower, "fpn_input_dim") else self.vision_tower.fpn_input_dim
-            self.mm_projector = build_vision_projector(self.config, fpn_input_dim=fpn_input_dim)
-
+            self.deplot_mm_projector = build_vision_projector(self.config, fpn_input_dim=fpn_input_dim, vision_tower_dim = 768, num_patches=2048)
+            self.siglip_mm_projector = build_vision_projector(self.config, fpn_input_dim=fpn_input_dim, vision_tower_dim = 1152, num_patches=732)
+            self.pix2struct_mm_projector = build_vision_projector(self.config, fpn_input_dim=fpn_input_dim, vision_tower_dim = 1536, num_patches=2048)
+            
             if 'unpad' in mm_patch_merge_type:
                 embed_std = 1 / torch.sqrt(torch.tensor(self.config.hidden_size, dtype=self.dtype))
                 self.image_newline = nn.Parameter(
@@ -115,10 +119,14 @@ class EagleMetaModel:
 
         if pretrain_mm_mlp_adapter is not None:
             mm_projector_weights = torch.load(pretrain_mm_mlp_adapter, map_location='cpu')
+            # print(mm_projector_weights.keys())
             def get_w(weights, keyword):
                 return {k.split(keyword + '.')[1]: v for k, v in weights.items() if keyword in k}
 
-            self.mm_projector.load_state_dict(get_w(mm_projector_weights, 'mm_projector'))
+            self.deplot_mm_projector.load_state_dict(get_w(mm_projector_weights, 'deplot_mm_projector'))
+            self.siglip_mm_projector.load_state_dict(get_w(mm_projector_weights, 'siglip_mm_projector'))
+            self.pix2struct_mm_projector.load_state_dict(get_w(mm_projector_weights, 'pix2struct_mm_projector'))
+            
 
 
 def unpad_image(tensor, original_size):
@@ -164,19 +172,24 @@ class EagleMetaForCausalLM(ABC):
     def encode_images(self, images):
         image_features = self.get_model().get_vision_tower()(images)
         # hardcoding 주의!
-        new_height = 2048 + 732 + 2048
-        new_width = 1152
-        # print(image_features)
-        # exit()
+        
+        
+        # padded_tensor = torch.full((len(images), 4900, new_width), -100).to(torch.bfloat16)
+        # padded_tensor[:, :2048, :768] = image_features[0].detach()
+        # padded_tensor[:, 2048:2048 + 732, :1152] = image_features[1].detach()
+        # padded_tensor[:, 2048 + 732:4828, :768] = image_features[2].detach()
 
-        padded_tensor = torch.full((len(images), 4900, new_width), -100).to(torch.bfloat16)
-        padded_tensor[:, :2048, :768] = image_features[0].detach()
-        padded_tensor[:, 2048:2048 + 732, :1152] = image_features[1].detach()
-        padded_tensor[:, 2048 + 732:4828, :768] = image_features[2].detach()
-
-        x = padded_tensor.clone().detach()
-        image_features = self.get_model().mm_projector(x)
-        return image_features
+        # x = padded_tensor.clone().detach()
+        projector_image = []
+        projector_image.append(self.get_model().deplot_mm_projector(image_features[0].to(torch.bfloat16)))
+        projector_image.append(self.get_model().siglip_mm_projector(image_features[1].to(torch.bfloat16)))
+        projector_image.append(self.get_model().pix2struct_mm_projector(image_features[2].to(torch.bfloat16)))
+        
+        result = torch.cat([projector_image[0]["last_hidden_state"], 
+                    projector_image[1]["last_hidden_state"], 
+                    projector_image[2]["last_hidden_state"]], dim=1)
+        
+        return result
 
     def prepare_inputs_labels_for_multimodal(
         self, input_ids, position_ids, attention_mask, past_key_values, labels,
@@ -187,7 +200,7 @@ class EagleMetaForCausalLM(ABC):
             return input_ids, position_ids, attention_mask, past_key_values, None, labels
 
         
-        image_features = self.encode_images(images).last_hidden_state
+        image_features = self.encode_images(images)
 
         # TODO: image start / end is not implemented here to support pretraining.
         if getattr(self.config, 'tune_mm_mlp_adapter', False) and getattr(self.config, 'mm_use_im_start_end', False):

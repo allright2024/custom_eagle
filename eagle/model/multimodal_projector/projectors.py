@@ -15,26 +15,15 @@ from .configuration import HoneybeeVisualProjectorConfig, CabsConfig
 
 
 def build_pos_embeds(
-    config: CabsConfig, num_input_tokens: List[int], vision_hidden_size: List[int]
+    config: CabsConfig, num_input_tokens: int, vision_hidden_size: int
 ):
     # pos emb
     if config.pos_emb:
-        pos_emb1 = torch.nn.Parameter(torch.zeros(1, num_input_tokens[0], vision_hidden_size[0])).to("cuda")
-        pos_emb2 = torch.nn.Parameter(torch.zeros(1, num_input_tokens[1], vision_hidden_size[1])).to("cuda")
-        pos_emb3 = torch.nn.Parameter(torch.zeros(1, num_input_tokens[2], vision_hidden_size[2])).to("cuda")
+        pos_emb = torch.nn.Parameter(torch.zeros(1, num_input_tokens, vision_hidden_size)).to("cuda")
 
-        # pos_emb = torch.cat((pos_emb1, pos_emb2, pos_emb3), dim=1).to(torch.bfloat16)
-        nn.init.trunc_normal_(pos_emb1, mean=0.0, std=0.02)
-        nn.init.trunc_normal_(pos_emb2, mean=0.0, std=0.02)
-        nn.init.trunc_normal_(pos_emb3, mean=0.0, std=0.02)
+        nn.init.trunc_normal_(pos_emb, mean=0.0, std=0.02)
 
-        pos_emb = torch.zeros((1, 4828, 1152)).to("cuda")
-        pos_emb[:, :2048, :768] = pos_emb1.detach()
-        pos_emb[:, 2048:2048+732, :1152] = pos_emb2.detach()
-        pos_emb[:, 2048+732:, :768] = pos_emb3.detach()
-        # pos_emb = pos_emb1
         pos_emb = pos_emb.to("cuda")
-        # pos_emb = [pos_emb1, pos_emb2, pos_emb3]
     else:
         pos_emb = None
 
@@ -55,7 +44,7 @@ def build_eos_tokens(config: CabsConfig, output_hidden_size: int):
 
 def build_prenorm(config: CabsConfig):
     if getattr(config, "prenorm", False):
-        prenorm = [LayerNorm(config.encoder_hidden_size[0]), LayerNorm(config.encoder_hidden_size[1]), LayerNorm(config.encoder_hidden_size[2])]
+        prenorm = LayerNorm(config.encoder_hidden_size)
     else:
         prenorm = None
     return prenorm
@@ -75,7 +64,7 @@ class Projector(nn.Module):
     def __init__(
         self,
         config: CabsConfig,
-        num_input_tokens: List[int],
+        num_input_tokens: int,
     ):
         super().__init__()
         self.config = config
@@ -85,6 +74,7 @@ class Projector(nn.Module):
         self.eos_tokens = build_eos_tokens(config, config.output_hidden_size)
 
         # pos emb
+        
         self.pos_emb = build_pos_embeds(config, num_input_tokens, config.encoder_hidden_size)
 
         self.prenorm = build_prenorm(config)
@@ -107,10 +97,14 @@ class Projector(nn.Module):
         if self.prenorm is not None:
             x = self.prenorm(x)
         
+        
+        
         x = x.to("cuda")
 
         if self.pos_emb is not None:
-            x[:, :4828, :] += self.pos_emb
+            print(x.shape)
+            print(self.pos_emb.shape)
+            x += self.pos_emb
 
         x = self._forward(x)  # (B, L, output_hidden_size)
 
@@ -132,23 +126,21 @@ class Projector(nn.Module):
         super()._load_from_state_dict(state_dict, *args, **kwargs)
 
 
-class MLPProjector(Projector):
-    def build_net(self):
-        encoder_hidden_size = self.config.encoder_hidden_size
-        output_hidden_size = self.config.output_hidden_size
-        depth = self.config.depth
-
-        self.net = build_mlp(depth, encoder_hidden_size, output_hidden_size)
-        
-    def _forward(self, x):
-        return self.net(x)
-
 
 class ConvProjector(Projector):
     def _forward(self, x):
         # x: [B, L, dim]
-        # padded_x = torch.full((x.shape[0], 4900, x.shape[2]), -100, dtype=torch.bfloat16).to("cuda")
-        x = rearrange(x, "b (h w) d -> b d h w", h=70, w=70)
+        h, w = 1, 1
+        if x.size(1) == 2048:
+            h = 64
+            w = 32
+        elif x.size(1) == 732:
+            h = 61
+            w = 12
+        elif x.size(1) == 4096:
+            h = 64
+            w = 64
+        x = rearrange(x, "b (h w) d -> b d h w", h=h, w=w)
         x = self.net(x)
         x = rearrange(x, "b d h w -> b (h w) d")
         x = self.readout(x)
@@ -177,9 +169,9 @@ class CAbstractor(ConvProjector):
             norm_layer=LayerNorm2d,
         )
 
-        s1_p = RegBlock(
+        s1 = RegBlock(
             depth,
-            encoder_hidden_size[1],
+            encoder_hidden_size,
             hidden_size,
         )
         sampler = nn.AdaptiveAvgPool2d((hw, hw))
@@ -190,7 +182,7 @@ class CAbstractor(ConvProjector):
         )
 
         if depth:
-            self.net = nn.Sequential(s1_p, sampler, s2)
+            self.net = nn.Sequential(s1, sampler, s2)
             self.readout = build_mlp(mlp_depth, hidden_size, output_hidden_size)
         else:
             self.net = sampler
