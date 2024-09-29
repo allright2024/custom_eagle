@@ -35,6 +35,7 @@ slurm_logs/*
 datasets/*
 playground/*
 gradio_tmp/*
+data/figureqa/*
 
 .ipynb_checkpoints
 *.ipynb

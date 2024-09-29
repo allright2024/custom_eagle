@@ -146,13 +146,21 @@ class MLPProjector(Projector):
 
 class ConvProjector(Projector):
     def _forward(self, x):
+        x = x.to(torch.bfloat16) # Float16
+        # self.net = self.net.float() # Float32 오류 있음
+        # self.readout = self.readout.float() # Float32
+        
+
         # x: [B, L, dim]
         # padded_x = torch.full((x.shape[0], 4900, x.shape[2]), -100, dtype=torch.bfloat16).to("cuda")
+        if x.shape[1] < 4900: # 다른 resize technique를 써서, 4828이 나올때, 4900으로 padding해주기 
+            padding_size = 4900 - x.shape[1]
+            x = F.pad(x, (0, 0, 0, padding_size))
         x = rearrange(x, "b (h w) d -> b d h w", h=70, w=70)
+
         x = self.net(x)
         x = rearrange(x, "b d h w -> b (h w) d")
         x = self.readout(x)
-
         return x
 
 

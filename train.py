@@ -75,6 +75,7 @@ class ModelArguments:
     mm_vision_select_layer: Optional[int] = field(default=-1)   # default to the last layer
     pretrain_mm_mlp_adapter: Optional[str] = field(default=None)
     mm_projector_type: Optional[str] = field(default='linear')
+    resize_type: Optional[str] = field(default='plain')
     mm_use_im_start_end: bool = field(default=False)
     mm_use_im_patch_token: bool = field(default=True)
     mm_patch_merge_type: Optional[str] = field(default='flat')
@@ -896,7 +897,7 @@ class LazySupervisedDataset(Dataset):
         if 'image' in sources[0]:
             image_file = self.list_data_dict[i]['image']
             image_folder = self.data_args.image_folder
-            # processor = self.data_args.image_processor
+            # processor = self.data_args.image_processor # 나중에 개별적으로 multi_backbone_channel_concatenation_encoder.py에서 처리
             try:
                 image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
             except:
@@ -1079,6 +1080,7 @@ def train(attn_implementation=None):
         training_args.use_im_start_end = model_args.mm_use_im_start_end
         model.config.mm_use_im_patch_token = model_args.mm_use_im_patch_token
         model.initialize_vision_tokenizer(model_args, tokenizer=tokenizer)
+        
 
     for name, param in model.named_parameters():
         if 'align_stages' in name:

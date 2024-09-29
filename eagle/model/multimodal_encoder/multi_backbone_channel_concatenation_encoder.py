@@ -147,7 +147,7 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
                 feature = vision_tower(**processed_image)
             features.append(feature)
         
-        return features
+        return features # list of features created by each vision tower
         
     @property
     def dummy_feature(self):

@@ -6,10 +6,11 @@ python -m torch.distributed.run \
     --deepspeed ./scripts/zero2.json \
     --model_name_or_path TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
     --version plain \
-    --data_path /root/data/asd.json \
-    --image_folder /root/data/images \
+    --data_path ./data/pretraining.json \
+    --image_folder ./data/images_2 \
     --vision_tower "google/deplot;mPLUG/TinyChart-3B-768-siglip;google/matcha-chart2text-pew" \
     --mm_projector_type cabstractor \
+    --resize_type channel_wise_concatenation \
     --tune_mm_mlp_adapter True \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \

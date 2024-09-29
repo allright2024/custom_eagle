@@ -88,6 +88,7 @@ class EagleMetaModel:
 
         self.config.use_mm_proj = True
         self.config.mm_projector_type = getattr(model_args, 'mm_projector_type', 'linear')
+        self.config.resize_type = getattr(model_args, 'resize_type', 'plain')
         self.config.mm_hidden_size = vision_tower.hidden_size
         self.config.mm_vision_select_layer = mm_vision_select_layer
         self.config.mm_vision_select_feature = mm_vision_select_feature
@@ -160,34 +161,98 @@ class EagleMetaForCausalLM(ABC):
 
     def get_vision_tower(self):
         return self.get_model().get_vision_tower()
+    def get_resize_type(self):
+        return getattr(self.get_model().config, 'resize_type', 'plain')
+        
 
-    def encode_images(self, images):
+    def encode_images(self, config, images):
         image_features = self.get_model().get_vision_tower()(images)
-        # hardcoding 주의!
-        new_height = 2048 + 732 + 2048
-        new_width = 1152
-        # print(image_features)
-        # exit()
+        resize_type = self.get_resize_type()
+        print('resize_type: ',resize_type)
+        
+        if resize_type == 'plain':
+            # hardcoding 주의!
+            new_height = 2048 + 732 + 2048
+            new_width = 1152
+            # print('image_features',image_features.shape)
+            # for i, arr in enumerate(image_features):
+            #     print(f'i: {i}, shape: {arr.shape}')
+            # print('exit()')
 
-        padded_tensor = torch.full((len(images), 4900, new_width), -100).to(torch.bfloat16)
-        padded_tensor[:, :2048, :768] = image_features[0].detach()
-        padded_tensor[:, 2048:2048 + 732, :1152] = image_features[1].detach()
-        padded_tensor[:, 2048 + 732:4828, :768] = image_features[2].detach()
+            padded_tensor = torch.full((len(images), 4900, new_width), -100).to(torch.bfloat16)
+            padded_tensor[:, :2048, :768] = image_features[0].detach()
+            padded_tensor[:, 2048:2048 + 732, :1152] = image_features[1].detach()
+            padded_tensor[:, 2048 + 732:4828, :768] = image_features[2].detach()
 
-        x = padded_tensor.clone().detach()
+            x = padded_tensor.clone().detach()
+            # print('after projector')
+            # for i, arr in enumerate(x):
+            #     print(f'i: {i}, shape: {arr.shape}')
+            # exit()
+        elif resize_type == 'channel_wise_concatenation':
+            deplot_image_feature = image_features[0].detach()  # [1, 2048, 768]
+            siglip_image_feature = image_features[1].detach()  # [1, 732, 1152]
+            matcha_image_feature = image_features[2].detach()  # [1, 2048, 768]
+
+            deplot_image_feature = deplot_image_feature.unsqueeze(2)  # [1, 2048, 768] -> [1, 2048, 1, 768]
+            siglip_image_feature = siglip_image_feature.unsqueeze(2)  # [1, 732, 1152] -> [1, 732, 1, 1152]
+            matcha_image_feature = matcha_image_feature.unsqueeze(2)  # [1, 2048, 768] -> [1, 2048, 1, 768]
+
+            resized_deplot_image_feature = torch.nn.functional.interpolate(
+                deplot_image_feature, size=(1, 1152), mode='bilinear', align_corners=False
+            )  # [1, 2048, 1, 1152]
+            
+            resized_siglip_image_feature = torch.nn.functional.interpolate(
+                siglip_image_feature, size=(1, 1152), mode='bilinear', align_corners=False
+            )  # [1, 732, 1, 1152]
+            
+            resized_matcha_image_feature = torch.nn.functional.interpolate(
+                matcha_image_feature, size=(1, 1152), mode='bilinear', align_corners=False
+            )  # [1, 2048, 1, 1152]
+
+            resized_deplot_image_feature = resized_deplot_image_feature.squeeze(2)  # [1, 2048, 1152]
+            resized_siglip_image_feature = resized_siglip_image_feature.squeeze(2)  # [1, 732, 1152]
+            resized_matcha_image_feature = resized_matcha_image_feature.squeeze(2)  # [1, 2048, 1152]
+
+            concatenated_features = torch.cat((
+                resized_deplot_image_feature, 
+                resized_siglip_image_feature, 
+                resized_matcha_image_feature), dim=1)  # [1, 6144, 1152]
+            x = concatenated_features.clone().detach()
+        elif resize_type == 'bilinear':
+            # Bilinear Interpolation
+            for i in range(len(image_features)):
+                image_features[i] = torch.nn.functional.interpolate(
+                    image_features[i].unsqueeze(2), size=(1, 1152), mode='bilinear', align_corners=False).squeeze(2)
+            x = torch.cat(image_features, dim=1)
+
+        elif resize_type == 'bicubic':
+            # Bicubic Interpolation
+            for i in range(len(image_features)):
+                image_features[i] = torch.nn.functional.interpolate(
+                    image_features[i].unsqueeze(2), size=(1, 1152), mode='bicubic', align_corners=False).squeeze(2)
+            x = torch.cat(image_features, dim=1)
+
+        elif resize_type == 'antialias':
+            # Bilinear Interpolation with Antialiasing
+            for i in range(len(image_features)):
+                image_features[i] = torch.nn.functional.interpolate(
+                    image_features[i].unsqueeze(2), size=(1, 1152), mode='bilinear', align_corners=False, antialias=True).squeeze(2)
+            x = torch.cat(image_features, dim=1)   
+                     
         image_features = self.get_model().mm_projector(x)
         return image_features
 
     def prepare_inputs_labels_for_multimodal(
         self, input_ids, position_ids, attention_mask, past_key_values, labels,
-        images, image_sizes=None
+        images, config, image_sizes=None
     ):
         vision_tower = self.get_vision_tower()
         if vision_tower is None or images is None or input_ids.shape[1] == 1:
             return input_ids, position_ids, attention_mask, past_key_values, None, labels
 
         
-        image_features = self.encode_images(images).last_hidden_state
+        image_features = self.encode_images(config, images).last_hidden_state
 
         # TODO: image start / end is not implemented here to support pretraining.
         if getattr(self.config, 'tune_mm_mlp_adapter', False) and getattr(self.config, 'mm_use_im_start_end', False):

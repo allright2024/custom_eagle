@@ -1,0 +1,212 @@
+[
+    {
+        "id": "004539375",
+        "image": "images_2/images_2/00453004539375.jpg",
+        "conversations": [
+            {
+                "from": "human",
+                "value": "Render a clear and concise summary of the photo.\n<image>"
+            },
+            {
+                "from": "gpt",
+                "value": "select luxury furniture 3 - inch gel memory foam mattress topper"
+            }
+        ]
+    },
+    {
+        "id": "002239345",
+        "image": "images_2/00223002239345.jpg",
+        "conversations": [
+            {
+                "from": "human",
+                "value": "Write a terse but informative summary of the picture.\n<image>"
+            },
+            {
+                "from": "gpt",
+                "value": "a grey watch with an army style strap"
+            }
+        ]
+    },
+    {
+        "id": "005947502",
+        "image": "images_2/00594005947502.jpg",
+        "conversations": [
+            {
+                "from": "human",
+                "value": "<image>\nWhat is this?"
+            },
+            {
+                "from": "gpt",
+                "value": "a dragon kite flying in the blue sky stock images"
+            }
+        ]
+    },
+    {
+        "id": "005116462",
+        "image": "images_2/00511005116462.jpg",
+        "conversations": [
+            {
+                "from": "human",
+                "value": "<image>\nRender a clear and concise summary of the photo."
+            },
+            {
+                "from": "gpt",
+                "value": "$ 10 - cute cheap printed mini dress - khaki multicolor striped floral print peasant short sleeve tunic"
+            }
+        ]
+    },
+    {
+        "id": "002017886",
+        "image": "images_2/00201002017886.jpg",
+        "conversations": [
+            {
+                "from": "human",
+                "value": "What is in the photo?\n<image>"
+            },
+            {
+                "from": "gpt",
+                "value": "augmented reality using aruco markers in opencv"
+            }
+        ]
+    },
+    {
+        "id": "001819539",
+        "image": "images_2/00181001819539.jpg",
+        "conversations": [
+            {
+                "from": "human",
+                "value": "Describe the image concisely.\n<image>"
+            },
+            {
+                "from": "gpt",
+                "value": "a pair of childrens boots in the shape of knitted shoes"
+            }
+        ]
+    },
+    {
+        "id": "002838027",
+        "image": "images_2/00283002838027.jpg",
+        "conversations": [
+            {
+                "from": "human",
+                "value": "Share a concise interpretation of the image provided.\n<image>"
+            },
+            {
+                "from": "gpt",
+                "value": "floral watercolor clip art rose flower border with pink"
+            }
+        ]
+    },
+    {
+        "id": "000406392",
+        "image": "images_2/00040000406392.jpg",
+        "conversations": [
+            {
+                "from": "human",
+                "value": "Give a brief description of the image.\n<image>"
+            },
+            {
+                "from": "gpt",
+                "value": "the divine queen in her elaborate masks canvas print featuring the face and hands of a woman with red hair"
+            }
+        ]
+    },
+    {
+        "id": "006288475",
+        "image": "images_2/00628006288475.jpg",
+        "conversations": [
+            {
+                "from": "human",
+                "value": "<image>\nWhat is this?"
+            },
+            {
+                "from": "gpt",
+                "value": "an aerial view of paris at night from a plane stock photo"
+            }
+        ]
+    },
+    {
+        "id": "000075539",
+        "image": "images_2/00007000075539.jpg",
+        "conversations": [
+            {
+                "from": "human",
+                "value": "Give a brief description of the image.\n<image>"
+            },
+            {
+                "from": "gpt",
+                "value": "the nike air trainer low in desert tan and black"
+            }
+        ]
+    },
+    {
+        "id": "001649122",
+        "image": "images_2/00164001649122.jpg",
+        "conversations": [
+            {
+                "from": "human",
+                "value": "<image>\nPresent a compact description of the photo's key features."
+            },
+            {
+                "from": "gpt",
+                "value": "a illustration of a dj in a crowd with the text so dop"
+            }
+        ]
+    },
+    {
+        "id": "002326944",
+        "image": "images_2/00232002326944.jpg",
+        "conversations": [
+            {
+                "from": "human",
+                "value": "Share a concise interpretation of the image provided.\n<image>"
+            },
+            {
+                "from": "gpt",
+                "value": "floor plan of cottage type house, 1 bedroom"
+            }
+        ]
+    },
+    {
+        "id": "000093116",
+        "image": "images_2/00009000093116.jpg",
+        "conversations": [
+            {
+                "from": "human",
+                "value": "Render a clear and concise summary of the photo.\n<image>"
+            },
+            {
+                "from": "gpt",
+                "value": "a cat looking back sitting on a rock at the ocean vacation & travel summer beach ocean animal pet animals dog"
+            }
+        ]
+    },
+    {
+        "id": "000951660",
+        "image": "images_2/00095000951660.jpg",
+        "conversations": [
+            {
+                "from": "human",
+                "value": "<image>\nDescribe the image concisely."
+            },
+            {
+                "from": "gpt",
+                "value": "a small toy bin with a raccoon print"
+            }
+        ]
+    },
+    {
+        "id": "006366709",
+        "image": "images_2/00636006366709.jpg",
+        "conversations": [
+            {
+                "from": "human",
+                "value": "Give a brief description of the image.\n<image>"
+            },
+            {
+                "from": "gpt",
+                "value": "business people at conference table, with a text saying why smart managers don't do sales meetings"
+            }
+        ]
+    }
+]
