@@ -102,8 +102,6 @@ class Projector(nn.Module):
         x = x.to("cuda")
 
         if self.pos_emb is not None:
-            print(x.shape)
-            print(self.pos_emb.shape)
             x += self.pos_emb
 
         x = self._forward(x)  # (B, L, output_hidden_size)
@@ -130,17 +128,8 @@ class Projector(nn.Module):
 class ConvProjector(Projector):
     def _forward(self, x):
         # x: [B, L, dim]
-        h, w = 1, 1
-        if x.size(1) == 2048:
-            h = 64
-            w = 32
-        elif x.size(1) == 732:
-            h = 61
-            w = 12
-        elif x.size(1) == 4096:
-            h = 64
-            w = 64
-        x = rearrange(x, "b (h w) d -> b d h w", h=h, w=w)
+        hw = int(x.size(1) ** 0.5)
+        x = rearrange(x, "b (h w) d -> b d h w", h=hw, w=hw)
         x = self.net(x)
         x = rearrange(x, "b d h w -> b (h w) d")
         x = self.readout(x)

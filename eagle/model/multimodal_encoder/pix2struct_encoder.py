@@ -103,13 +103,6 @@ class Pix2StructLargeVisionTower(nn.Module):
     # @torch.no_grad()
     def forward(self, flattened_patches, attention_mask):
 
-        # if self.de_normalize:
-        #     mean = self.image_mean.clone().view(1, 3, 1, 1).to(dtype=images.dtype, device=images.device)
-        #     std = self.image_std.clone().view(1, 3, 1, 1).to(dtype=images.dtype, device=images.device)
-        #     x = (images * std + mean) * 255.0
-        #     x = self.pix2struct_processor(images=x.float(), return_tensors="pt")
-
-
         flattened_patches = flattened_patches.to(dtype=torch.bfloat16).cuda()
         attention_mask = attention_mask.to(dtype=torch.bfloat16).cuda()
         image_features = self.vision_tower(flattened_patches=flattened_patches.cuda(), attention_mask=attention_mask.cuda()).last_hidden_state

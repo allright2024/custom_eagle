@@ -25,6 +25,7 @@ from .pix2struct_encoder import Pix2StructLargeVisionTower
 from .donut_encoder import DonutVisionTower
 import torch.nn.functional as F
 from torch.nn.init import trunc_normal_
+from .tinychart_siglip_encoder import TinyChartSigLipVisionTower
 from .siglip_encoder import SigLipVisionTower
 from copy import deepcopy
 from PIL import Image
@@ -53,17 +54,14 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
         
         for name in vision_tower_name_list:
             if name == "mPLUG/TinyChart-3B-768-siglip":
-                siglip_vision_tower = SigLipVisionTower("mPLUG/TinyChart-3B-768-siglip")
+                tinychart_siglip_vision_tower = TinyChartSigLipVisionTower("mPLUG/TinyChart-3B-768-siglip")
+                tinychart_siglip_vision_tower.load_model()
+                self.vision_towers.append(tinychart_siglip_vision_tower)
+            elif name == "google/siglip-so400m-patch14-384":
+                siglip_args = deepcopy(args)
+                siglip_vision_tower = SigLipVisionTower("google/siglip-so400m-patch14-384", siglip_args)
                 siglip_vision_tower.load_model()
                 self.vision_towers.append(siglip_vision_tower)
-            if name == 'khhuang/chart-to-table':
-                donut_args = deepcopy(args)
-                donut_args.input_image_size = 1024
-                donut_args.de_normalize=False
-                donut_args.freeze_vision = False
-                donut_vision_tower = DonutVisionTower('khhuang/chart-to-table', donut_args)     
-                donut_vision_tower.load_model()
-                self.vision_towers.append(donut_vision_tower)
             elif name == 'google/deplot':
                 pix_args = deepcopy(args)
                 pix_args.input_image_size = 1024
@@ -74,16 +72,6 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
                 deplot_vision_tower = Pix2StructLargeVisionTower("google/deplot", pix_args)     
                 deplot_vision_tower.load_model()
                 self.vision_towers.append(deplot_vision_tower)
-            elif name == "google/matcha-chart2text-pew":
-                pix_args = deepcopy(args)
-                pix_args.input_image_size = 1024
-                pix_args.freeze_vision = False
-                pix_args.do_resize = True
-                pix_args.de_normalize = True
-                deplot_vision_tower = Pix2StructLargeVisionTower("google/matcha-chart2text-pew", pix_args)     
-                deplot_vision_tower.load_model()
-                self.vision_towers.append(deplot_vision_tower)
-                
             elif name == "sam-1024":
                 sam_args = deepcopy(args)
                 sam_args.freeze_vision = False
@@ -123,28 +111,33 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
     def forward(self, x):
         features = []
         
+        def expand2square(pil_imgs, background_color):
+            arr_img = []
+            for pil_img in pil_imgs:
+                width, height = pil_img.size
+                if width == height:
+                    arr_img.append(pil_img)
+                elif width > height:
+                    result = Image.new(pil_img.mode, (width, width), background_color)
+                    result.paste(pil_img, (0, (width - height) // 2))
+                    arr_img.append(result)
+                else:
+                    result = Image.new(pil_img.mode, (height, height), background_color)
+                    result.paste(pil_img, ((height - width) // 2, 0))
+                    arr_img.append(result)
+            return arr_img
+        
+        squared_x = expand2square(x, tuple(int(t*255) for t in [0.5, 0.5, 0.5]))
+        
         for vision_tower in self.vision_towers:
             try:
-                processed_image = vision_tower.image_processor(x, return_tensors='pt')
-                feature = vision_tower(**processed_image)
-            except:
-                def expand2square(pil_imgs, background_color):
-                    arr_img = []
-                    for pil_img in pil_imgs:
-                        width, height = pil_img.size
-                        if width == height:
-                            arr_img.append(pil_img)
-                        elif width > height:
-                            result = Image.new(pil_img.mode, (width, width), background_color)
-                            result.paste(pil_img, (0, (width - height) // 2))
-                            arr_img.append(result)
-                        else:
-                            result = Image.new(pil_img.mode, (height, height), background_color)
-                            result.paste(pil_img, ((height - width) // 2, 0))
-                            arr_img.append(result)
-                    return arr_img
+                processed_image = vision_tower.image_processor(squared_x, return_tensors='pt')
                 
-                squared_x = expand2square(x, tuple(int(t*255) for t in [0.5, 0.5, 0.5]))
+                processed_image['flattened_patches'] = processed_image['flattened_patches'][:, :2025, :]
+                processed_image["attention_mask"] = processed_image["attention_mask"][:, :2025]
+                feature = vision_tower(**processed_image)
+                
+            except:
                 processed_image = vision_tower.image_processor.preprocess(squared_x, return_tensors='pt')['pixel_values']
                 feature = vision_tower(processed_image)
             features.append(feature)

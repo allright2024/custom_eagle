@@ -50,9 +50,9 @@ class EagleMetaModel:
         if hasattr(config, "mm_vision_tower"):
             self.vision_tower = build_vision_tower(config, delay_load=True)
             fpn_input_dim = [] if not hasattr(self.vision_tower, "fpn_input_dim") else self.vision_tower.fpn_input_dim
-            self.deplot_mm_projector = build_vision_projector(self.config, fpn_input_dim=fpn_input_dim, vision_tower_dim = 768, num_patches=2048)
-            self.siglip_mm_projector = build_vision_projector(self.config, fpn_input_dim=fpn_input_dim, vision_tower_dim = 1152, num_patches=732)
-            self.pix2struct_mm_projector = build_vision_projector(self.config, fpn_input_dim=fpn_input_dim, vision_tower_dim = 5136, num_patches=4096)
+            self.deplot_mm_projector = build_vision_projector(self.config, fpn_input_dim=fpn_input_dim, vision_tower_dim = 768, num_patches=2025)
+            self.siglip_mm_projector = build_vision_projector(self.config, fpn_input_dim=fpn_input_dim, vision_tower_dim = 1152, num_patches=729)
+            self.pix2struct_mm_projector = build_vision_projector(self.config, fpn_input_dim=fpn_input_dim, vision_tower_dim = 1536, num_patches=2025)
 
             if 'unpad' in getattr(config, 'mm_patch_merge_type', ''):
                 self.image_newline = nn.Parameter(
@@ -98,9 +98,9 @@ class EagleMetaModel:
 
         if getattr(self, 'mm_projector', None) is None:
             fpn_input_dim = [] if not hasattr(self.vision_tower, "fpn_input_dim") else self.vision_tower.fpn_input_dim
-            self.deplot_mm_projector = build_vision_projector(self.config, fpn_input_dim=fpn_input_dim, vision_tower_dim = 768, num_patches=2048)
-            self.siglip_mm_projector = build_vision_projector(self.config, fpn_input_dim=fpn_input_dim, vision_tower_dim = 1152, num_patches=732)
-            self.pix2struct_mm_projector = build_vision_projector(self.config, fpn_input_dim=fpn_input_dim, vision_tower_dim = 1536, num_patches=2048)
+            self.deplot_mm_projector = build_vision_projector(self.config, fpn_input_dim=fpn_input_dim, vision_tower_dim = 768, num_patches=2025)
+            self.siglip_mm_projector = build_vision_projector(self.config, fpn_input_dim=fpn_input_dim, vision_tower_dim = 1152, num_patches=729)
+            self.pix2struct_mm_projector = build_vision_projector(self.config, fpn_input_dim=fpn_input_dim, vision_tower_dim = 1536, num_patches=2025)
             
             if 'unpad' in mm_patch_merge_type:
                 embed_std = 1 / torch.sqrt(torch.tensor(self.config.hidden_size, dtype=self.dtype))
@@ -171,14 +171,8 @@ class EagleMetaForCausalLM(ABC):
 
     def encode_images(self, images):
         image_features = self.get_model().get_vision_tower()(images)
-        # hardcoding 주의!
         
         
-        # padded_tensor = torch.full((len(images), 4900, new_width), -100).to(torch.bfloat16)
-        # padded_tensor[:, :2048, :768] = image_features[0].detach()
-        # padded_tensor[:, 2048:2048 + 732, :1152] = image_features[1].detach()
-        # padded_tensor[:, 2048 + 732:4828, :768] = image_features[2].detach()
-
         # x = padded_tensor.clone().detach()
         projector_image = []
         projector_image.append(self.get_model().deplot_mm_projector(image_features[0].to(torch.bfloat16)))

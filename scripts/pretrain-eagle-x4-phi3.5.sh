@@ -8,7 +8,7 @@ python -m torch.distributed.run \
     --version plain \
     --data_path /root/data/asd.json \
     --image_folder /root/data/images \
-    --vision_tower "google/deplot;mPLUG/TinyChart-3B-768-siglip;google/pix2struct-large" \
+    --vision_tower "google/deplot;google/siglip-so400m-patch14-384;google/pix2struct-large" \
     --mm_projector_type cabstractor \
     --tune_mm_mlp_adapter True \
     --mm_vision_select_layer -2 \
