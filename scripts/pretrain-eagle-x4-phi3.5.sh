@@ -4,10 +4,10 @@ NAME="eagle_pretrained"
 python -m torch.distributed.run \
     train_mem.py \
     --deepspeed ./scripts/zero2.json \
-    --model_name_or_path TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
+    --model_name_or_path microsoft/Phi-3.5-mini-instruct \
     --version plain \
-    --data_path /root/data/asd.json \
-    --image_folder /root/data/images \
+    --data_path /workspace/custom_eagle_data/data/pretrain/pretrain_table.json \
+    --image_folder /workspace/custom_eagle_data/data \
     --vision_tower "google/deplot;google/siglip-so400m-patch14-384;google/pix2struct-large" \
     --mm_projector_type cabstractor \
     --tune_mm_mlp_adapter True \

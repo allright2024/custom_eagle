@@ -70,7 +70,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
             lora_cfg_pretrained = eagleConfig.from_pretrained(model_path)
             tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
             print('Loading eagle from base model...')
-            model = EagleLlamaForCausalLM.from_pretrained(model_base, low_cpu_mem_usage=True, config=lora_cfg_pretrained, **kwargs)
+            model = EaglePhiForCausalLM.from_pretrained(model_base, low_cpu_mem_usage=True, config=lora_cfg_pretrained, **kwargs)
             token_num, tokem_dim = model.lm_head.out_features, model.lm_head.in_features
             if model.lm_head.weight.shape[0] != token_num:
                 model.lm_head.weight = torch.nn.Parameter(torch.empty(token_num, tokem_dim, device=model.device, dtype=model.dtype))
@@ -109,7 +109,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
 
             tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
             cfg_pretrained = AutoConfig.from_pretrained(model_path)
-            model = EagleLlamaForCausalLM.from_pretrained(model_base, low_cpu_mem_usage=True, config=cfg_pretrained, **kwargs)
+            model = EaglePhiForCausalLM.from_pretrained(model_base, low_cpu_mem_usage=True, config=cfg_pretrained, **kwargs)
 
             mm_projector_weights = torch.load(os.path.join(model_path, 'mm_projector.bin'), map_location='cpu')
             mm_projector_weights = {k: v.to(torch.float16) for k, v in mm_projector_weights.items()}
@@ -119,7 +119,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
 
             tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
             print("tokenizer Loaded=====================================================")
-            model = EagleLlamaForCausalLM.from_pretrained(
+            model = EaglePhiForCausalLM.from_pretrained(
                 model_path,
                 low_cpu_mem_usage=True,
                 **kwargs
@@ -144,7 +144,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
             print("debug6===============================================================1")
 
             tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
-            model = EagleLlamaForCausalLM.from_pretrained(
+            model = EaglePhiForCausalLM.from_pretrained(
                 model_path,
                 low_cpu_mem_usage=True,
                 **kwargs

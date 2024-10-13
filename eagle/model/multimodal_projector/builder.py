@@ -42,10 +42,10 @@ def build_vision_projector(config, delay_load=False, fpn_input_dim=[], **kwargs)
     if projector_type == "cabstractor":
         num_input_tokens = kwargs["num_patches"] # 하드코딩(이미지 인코더 특성에 따라 정해주는 것)
         
-        config = CabsConfig(output_hidden_size = 2048, 
+        config = CabsConfig(output_hidden_size = 3072, 
                             depth = 3, 
                             mlp_depth = 2, 
-                            num_query_tokens = 144, 
+                            num_query_tokens = 225, 
                             hidden_size = 1024, 
                             encoder_hidden_size = kwargs["vision_tower_dim"]) # honeybee에서 가져온 정보
         return CAbstractor(config, num_input_tokens=num_input_tokens)

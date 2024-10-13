@@ -899,6 +899,19 @@ class LazySupervisedDataset(Dataset):
             # processor = self.data_args.image_processor
             try:
                 image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
+                def expand2square(pil_img, background_color):
+                    width, height = pil_img.size
+                    if width == height:
+                        return pil_img
+                    elif width > height:
+                        result = Image.new(pil_img.mode, (width, width), background_color)
+                        result.paste(pil_img, (0, (width - height) // 2))
+                        return result
+                    else:
+                        result = Image.new(pil_img.mode, (height, height), background_color)
+                        result.paste(pil_img, ((height - width) // 2, 0))
+                        return result
+                image = expand2square(image, tuple(int(x*255) for x in processor.image_mean))
             except:
                 print(f'image file {os.path.join(image_folder, image_file)} broken.., using a dummy black image instead')
                 image = Image.fromarray(np.zeros((224,224,3), dtype=np.uint8))
@@ -985,7 +998,7 @@ def train(attn_implementation=None):
     bnb_model_from_pretrained_args = {}
 
     if model_args.vision_tower is not None:
-        model = EagleLlamaForCausalLM.from_pretrained(
+        model = EaglePhiForCausalLM.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             attn_implementation=attn_implementation,
