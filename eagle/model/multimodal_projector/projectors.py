@@ -2,30 +2,35 @@
 """
 from functools import partial
 
+from typing import List
 import torch
 import torch.nn as nn
 from einops import rearrange
 from timm.layers import LayerNorm, LayerNorm2d
 from timm.models.regnet import RegStage
 from transformers.modeling_outputs import BaseModelOutput
+import torch.nn.functional as F
 
-from .configuration import HoneybeeVisualProjectorConfig
+from .configuration import HoneybeeVisualProjectorConfig, CabsConfig
 
 
 def build_pos_embeds(
-    config: HoneybeeVisualProjectorConfig, num_input_tokens: int, vision_hidden_size: int
+    config: CabsConfig, num_input_tokens: int, vision_hidden_size: int
 ):
     # pos emb
     if config.pos_emb:
-        pos_emb = torch.nn.Parameter(torch.zeros(1, num_input_tokens, vision_hidden_size))
+        pos_emb = torch.nn.Parameter(torch.zeros(1, num_input_tokens, vision_hidden_size)).to("cuda")
+
         nn.init.trunc_normal_(pos_emb, mean=0.0, std=0.02)
+
+        pos_emb = pos_emb.to("cuda")
     else:
         pos_emb = None
 
     return pos_emb
 
 
-def build_eos_tokens(config: HoneybeeVisualProjectorConfig, output_hidden_size: int):
+def build_eos_tokens(config: CabsConfig, output_hidden_size: int):
     # think tokens
     num_eos_tokens = config.num_eos_tokens
     if num_eos_tokens:
@@ -37,7 +42,7 @@ def build_eos_tokens(config: HoneybeeVisualProjectorConfig, output_hidden_size: 
     return eos_tokens
 
 
-def build_prenorm(config: HoneybeeVisualProjectorConfig):
+def build_prenorm(config: CabsConfig):
     if getattr(config, "prenorm", False):
         prenorm = LayerNorm(config.encoder_hidden_size)
     else:
@@ -58,7 +63,7 @@ class Projector(nn.Module):
 
     def __init__(
         self,
-        config: HoneybeeVisualProjectorConfig,
+        config: CabsConfig,
         num_input_tokens: int,
     ):
         super().__init__()
@@ -69,6 +74,7 @@ class Projector(nn.Module):
         self.eos_tokens = build_eos_tokens(config, config.output_hidden_size)
 
         # pos emb
+        
         self.pos_emb = build_pos_embeds(config, num_input_tokens, config.encoder_hidden_size)
 
         self.prenorm = build_prenorm(config)
@@ -87,8 +93,13 @@ class Projector(nn.Module):
             x: (B, L, encoder_hidden_size) tensor from the visual backbone (CLIP visual encoder),
                 including cls token.
         """
+        # 현재 None으로 설정
         if self.prenorm is not None:
             x = self.prenorm(x)
+        
+        
+        
+        x = x.to("cuda")
 
         if self.pos_emb is not None:
             x += self.pos_emb
@@ -104,24 +115,14 @@ class Projector(nn.Module):
     
     def _load_from_state_dict(self, state_dict, *args, **kwargs):
         # update old ckpt compatible with current code
-        pos_emb = state_dict["abstractor.pos_emb"]
-        if pos_emb.size(1) == self.pos_emb.size(1) + 1:
-            # remove obsolete first pos emb (for cls token originally)
-            state_dict["abstractor.pos_emb"] = pos_emb[:, 1:]
+        # 이 부분은 state_dict에 없어서 못 불러오는 중..
+        # pos_emb = state_dict["abstractor.pos_emb"]
+        # if pos_emb.size(1) == self.pos_emb.size(1) + 1:
+        #     # remove obsolete first pos emb (for cls token originally)
+        #     state_dict["abstractor.pos_emb"] = pos_emb[:, 1:]
 
         super()._load_from_state_dict(state_dict, *args, **kwargs)
 
-
-class MLPProjector(Projector):
-    def build_net(self):
-        encoder_hidden_size = self.config.encoder_hidden_size
-        output_hidden_size = self.config.output_hidden_size
-        depth = self.config.depth
-
-        self.net = build_mlp(depth, encoder_hidden_size, output_hidden_size)
-
-    def _forward(self, x):
-        return self.net(x)
 
 
 class ConvProjector(Projector):

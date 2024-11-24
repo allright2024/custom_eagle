@@ -896,13 +896,9 @@ class LazySupervisedDataset(Dataset):
         if 'image' in sources[0]:
             image_file = self.list_data_dict[i]['image']
             image_folder = self.data_args.image_folder
-            processor = self.data_args.image_processor
+            # processor = self.data_args.image_processor
             try:
                 image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
-            except:
-                print(f'image file {os.path.join(image_folder, image_file)} broken.., using a dummy black image instead')
-                image = Image.fromarray(np.zeros((224,224,3), dtype=np.uint8))
-            if self.data_args.image_aspect_ratio == 'pad':
                 def expand2square(pil_img, background_color):
                     width, height = pil_img.size
                     if width == height:
@@ -916,9 +912,10 @@ class LazySupervisedDataset(Dataset):
                         result.paste(pil_img, ((height - width) // 2, 0))
                         return result
                 image = expand2square(image, tuple(int(x*255) for x in processor.image_mean))
-                image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-            else:
-                image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+            except:
+                print(f'image file {os.path.join(image_folder, image_file)} broken.., using a dummy black image instead')
+                image = Image.fromarray(np.zeros((224,224,3), dtype=np.uint8))
+            
             sources = preprocess_multimodal(
                 copy.deepcopy([e["conversations"] for e in sources]),
                 self.data_args)
@@ -968,10 +965,10 @@ class DataCollatorForSupervisedDataset(object):
 
         if 'image' in instances[0]:
             images = [instance['image'] for instance in instances]
-            if all(x is not None and x.shape == images[0].shape for x in images):
-                batch['images'] = torch.stack(images)
-            else:
-                batch['images'] = images
+            # if all(x is not None and x.shape == images[0].shape for x in images):
+            #     batch['images'] = torch.stack(images)
+            # else:
+            batch['images'] = images
 
         return batch
 
@@ -999,26 +996,9 @@ def train(attn_implementation=None):
 
 
     bnb_model_from_pretrained_args = {}
-    if training_args.bits in [4, 8]:
-        from transformers import BitsAndBytesConfig
-        bnb_model_from_pretrained_args.update(dict(
-            device_map={"": training_args.device},
-            load_in_4bit=training_args.bits == 4,
-            load_in_8bit=training_args.bits == 8,
-            quantization_config=BitsAndBytesConfig(
-                load_in_4bit=training_args.bits == 4,
-                load_in_8bit=training_args.bits == 8,
-                llm_int8_skip_modules=["mm_projector"],
-                llm_int8_threshold=6.0,
-                llm_int8_has_fp16_weight=False,
-                bnb_4bit_compute_dtype=compute_dtype,
-                bnb_4bit_use_double_quant=training_args.double_quant,
-                bnb_4bit_quant_type=training_args.quant_type # {'fp4', 'nf4'}
-            )
-        ))
 
     if model_args.vision_tower is not None:
-        model = EagleLlamaForCausalLM.from_pretrained(
+        model = EaglePhiForCausalLM.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             attn_implementation=attn_implementation,
@@ -1038,11 +1018,6 @@ def train(attn_implementation=None):
     if model_args.freeze_backbone:
         model.model.requires_grad_(False)
 
-    if training_args.bits in [4, 8]:
-        from peft import prepare_model_for_kbit_training
-        model.config.torch_dtype=(torch.float32 if training_args.fp16 else (torch.bfloat16 if training_args.bf16 else torch.float32))
-        model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=training_args.gradient_checkpointing)
-
     if training_args.gradient_checkpointing:
         if hasattr(model, "enable_input_require_grads"):
             model.enable_input_require_grads()
@@ -1050,40 +1025,14 @@ def train(attn_implementation=None):
             def make_inputs_require_grad(module, input, output):
                 output.requires_grad_(True)
             model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
-
-    if training_args.lora_enable:
-        from peft import LoraConfig, get_peft_model
-        lora_config = LoraConfig(
-            r=training_args.lora_r,
-            lora_alpha=training_args.lora_alpha,
-            target_modules=find_all_linear_names(model),
-            lora_dropout=training_args.lora_dropout,
-            bias=training_args.lora_bias,
-            task_type="CAUSAL_LM",
-        )
-        if training_args.bits == 16:
-            if training_args.bf16:
-                model.to(torch.bfloat16)
-            if training_args.fp16:
-                model.to(torch.float16)
-        rank0_print("Adding LoRA adapters...")
-        model = get_peft_model(model, lora_config)
-
-    if 'mpt' in model_args.model_name_or_path:
-        tokenizer = transformers.AutoTokenizer.from_pretrained(
-            model_args.model_name_or_path,
-            cache_dir=training_args.cache_dir,
-            model_max_length=training_args.model_max_length,
-            padding_side="right"
-        )
-    else:
-        tokenizer = transformers.AutoTokenizer.from_pretrained(
-            model_args.model_name_or_path,
-            cache_dir=training_args.cache_dir,
-            model_max_length=training_args.model_max_length,
-            padding_side="right",
-            use_fast=False,
-        )
+    
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        model_args.model_name_or_path,
+        cache_dir=training_args.cache_dir,
+        model_max_length=training_args.model_max_length,
+        padding_side="right",
+        use_fast=False,
+    )
 
     if model_args.version == "v0":
         if tokenizer.pad_token is None:
@@ -1119,7 +1068,7 @@ def train(attn_implementation=None):
         vision_tower = model.get_vision_tower()
         vision_tower.to(dtype=torch.bfloat16 if training_args.bf16 else torch.float16, device=training_args.device)
 
-        data_args.image_processor = vision_tower.image_processor
+        # data_args.image_processor = vision_tower.image_processor
         data_args.is_multimodal = True
 
         model.config.image_aspect_ratio = data_args.image_aspect_ratio
@@ -1129,16 +1078,18 @@ def train(attn_implementation=None):
         model.config.tune_mm_mlp_adapter = training_args.tune_mm_mlp_adapter = model_args.tune_mm_mlp_adapter
         if model_args.tune_mm_mlp_adapter:
             model.requires_grad_(False)
-            for p in model.get_model().mm_projector.parameters():
+            
+            for p in model.get_model().deplot_mm_projector.parameters():
+                p.requires_grad = True
+            for p in model.get_model().siglip_mm_projector.parameters():
+                p.requires_grad = True
+            for p in model.get_model().pix2struct_mm_projector.parameters():
                 p.requires_grad = True
 
         model.config.freeze_mm_mlp_adapter = training_args.freeze_mm_mlp_adapter
         if training_args.freeze_mm_mlp_adapter:
             for p in model.get_model().mm_projector.parameters():
                 p.requires_grad = False
-
-        if training_args.bits in [4, 8]:
-            model.get_model().mm_projector.to(dtype=compute_dtype, device=training_args.device)
 
         model.config.mm_use_im_start_end = data_args.mm_use_im_start_end = model_args.mm_use_im_start_end
         model.config.mm_projector_lr = training_args.mm_projector_lr
@@ -1149,19 +1100,6 @@ def train(attn_implementation=None):
     for name, param in model.named_parameters():
         if 'align_stages' in name:
             param.requires_grad = True
-
-    if training_args.bits in [4, 8]:
-        from peft.tuners.lora import LoraLayer
-        for name, module in model.named_modules():
-            if isinstance(module, LoraLayer):
-                if training_args.bf16:
-                    module = module.to(torch.bfloat16)
-            if 'norm' in name:
-                module = module.to(torch.float32)
-            if 'lm_head' in name or 'embed_tokens' in name:
-                if hasattr(module, 'weight'):
-                    if training_args.bf16 and module.weight.dtype == torch.float32:
-                        module = module.to(torch.bfloat16)
 
 
     data_module = make_supervised_data_module(tokenizer=tokenizer,

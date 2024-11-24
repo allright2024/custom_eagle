@@ -25,8 +25,10 @@ from .pix2struct_encoder import Pix2StructLargeVisionTower
 from .donut_encoder import DonutVisionTower
 import torch.nn.functional as F
 from torch.nn.init import trunc_normal_
+from .tinychart_siglip_encoder import TinyChartSigLipVisionTower
 from .siglip_encoder import SigLipVisionTower
 from copy import deepcopy
+from PIL import Image
 import random
 import math
 
@@ -49,28 +51,27 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
       
     def load_vision_towers(self, vision_tower_name_list, args):
         self.vision_towers = nn.ModuleList()
-        siglip_vision_tower = SigLipVisionTower("mPLUG/TinyChart-3B-768-siglip")
-        siglip_vision_tower.load_model()
-        self.vision_towers.append(siglip_vision_tower)
+        
         for name in vision_tower_name_list:
-            if name == 'khhuang/chart-to-table':
-                donut_args = deepcopy(args)
-                donut_args.input_image_size = 1024
-                donut_args.freeze_vision = False
-                donut_vision_tower = DonutVisionTower('khhuang/chart-to-table', donut_args)     
-                donut_vision_tower.load_model()
-                self.vision_towers.append(donut_vision_tower)
+            if name == "mPLUG/TinyChart-3B-768-siglip":
+                tinychart_siglip_vision_tower = TinyChartSigLipVisionTower("mPLUG/TinyChart-3B-768-siglip")
+                tinychart_siglip_vision_tower.load_model()
+                self.vision_towers.append(tinychart_siglip_vision_tower)
+            elif name == "google/siglip-so400m-patch14-384":
+                siglip_args = deepcopy(args)
+                siglip_vision_tower = SigLipVisionTower("google/siglip-so400m-patch14-384", siglip_args)
+                siglip_vision_tower.load_model()
+                self.vision_towers.append(siglip_vision_tower)
             elif name == 'google/deplot':
                 pix_args = deepcopy(args)
-                #pix_args.freeze_vision = True
                 pix_args.input_image_size = 1024
+                pix_args.max_patches = 2048
                 pix_args.freeze_vision = False
                 pix_args.do_resize = True
                 pix_args.de_normalize = True
                 deplot_vision_tower = Pix2StructLargeVisionTower("google/deplot", pix_args)     
                 deplot_vision_tower.load_model()
                 self.vision_towers.append(deplot_vision_tower)
-            
             elif name == "sam-1024":
                 sam_args = deepcopy(args)
                 sam_args.freeze_vision = False
@@ -84,6 +85,7 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
                 pix_args = deepcopy(args)
                 #pix_args.freeze_vision = True
                 pix_args.input_image_size = 1024
+                pix_args.max_patches = 4096
                 pix_args.freeze_vision = False
                 pix_args.do_resize = True
                 pix_args.de_normalize = True
@@ -100,7 +102,7 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
                 self.vision_towers.append(clip_vision_tower)
         
         # a hardcode here, so we always use convnext in the vision encoder mixture
-        self.image_processor = siglip_vision_tower.image_processor
+        # self.image_processor = siglip_vision_tower.image_processor
         self.is_loaded = True
 
     def load_model(self):
@@ -108,32 +110,21 @@ class MultiBackboneChannelConcatenationVisionTower(nn.Module):
 
     def forward(self, x):
         features = []
-        for vision_tower in self.vision_towers:
-            if vision_tower.input_image_size != self.input_image_size:
-                resized_x = F.interpolate(x.float(), 
-                                          size=(vision_tower.input_image_size, vision_tower.input_image_size), 
-                                          mode='bilinear', 
-                                          align_corners=True).to(dtype=x.dtype)
-            else:
-                resized_x = x
-            feature = vision_tower(resized_x)
-            if len(feature.shape) == 3: # b, n, c
-                b, n, c = feature.shape
-                if n == self.num_tokens:
-                    features.append(feature)
-                    continue
-
-                w = h = int(n**0.5)
-                feature = feature.transpose(1,2).reshape(b, c, h, w)
-            else:
-                b, c, h, w = feature.shape
-
-            if w != self.grid_size:
-                feature = F.interpolate(feature.float(), size=(self.grid_size, self.grid_size), mode='bilinear', align_corners=True).to(dtype=x.dtype)
-            features.append(feature.flatten(2,3).transpose(1,2))
         
-        features = torch.cat(features, dim=-1)
-
+        for vision_tower in self.vision_towers:
+            try:
+                processed_image = vision_tower.image_processor(x, return_tensors='pt')
+                
+                processed_image['flattened_patches'] = processed_image['flattened_patches'][:, :2025, :]
+                processed_image["attention_mask"] = processed_image["attention_mask"][:, :2025]
+                feature = vision_tower(**processed_image)
+                
+            except:
+                processed_image = vision_tower.image_processor.preprocess(x, return_tensors='pt')['pixel_values']
+                feature = vision_tower(processed_image)
+            features.append(feature)
+            
+        
         return features
         
     @property
